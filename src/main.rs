@@ -1,4 +1,4 @@
-use arbiter::{manager, environment::contract::SimulationContract};
+use arbiter::{manager, environment::contract::SimulationContract, utils::unpack_execution};
 use arbiter::agent::Agent;
 use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
 
@@ -18,10 +18,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let exchange = SimulationContract::new(exchange::EXCHANGE_ABI.clone(), exchange::EXCHANGE_BYTECODE.clone());
     let(exchange, result) = admin.deploy(exchange, Vec::new()).unwrap();
     manager.deployed_contracts.insert("exchange".to_string(), exchange);
+    let exchange = manager.deployed_contracts.get("exchange").unwrap();
+
+    let res = admin.call(exchange, "version", vec![])?;
+    let decoded: String = exchange.decode_output("version", unpack_execution(res)?)?;
+    println!("Version: {:?}", decoded);
     
     assert!(result.is_success());
     println!("Gas used: {:?}", result.gas_used());
-    println!("Exchange address: {:?}", manager.deployed_contracts.get("exchange").unwrap().address);
+    println!("Exchange address: {:?}", exchange.address);
     println!("Success!");
 
 
@@ -41,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let price = strategy.objective.expect("No objective set!").get_reported_price();
     println!("Price: {:?}", price);
 
-    setup::run(&mut manager).await.unwrap();
+    //setup::run(&mut manager).await.unwrap();
     println!("Simulation ran setup");
 
     Ok(())

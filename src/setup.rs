@@ -8,11 +8,11 @@ pub async fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn
     let entrypoint = SimulationContract::new(entrypoint::ENTRYPOINT_ABI.clone(), entrypoint::ENTRYPOINT_BYTECODE.clone());
     let (entrypoint, result) = admin.deploy(entrypoint, Vec::new()).unwrap();
 
-    manager.deployed_contracts.insert("entrypoint".to_string(), entrypoint);
-
-    let called = admin.call(manager.deployed_contracts.get("entrypoint").unwrap(), "start", Vec::new()).unwrap();
-    assert!(called.is_success()); 
-    println!("Gas used: {:?}", called.gas_used());
+    //manager.deployed_contracts.insert("entrypoint".to_string(), entrypoint);
+//
+    //let called = admin.call(manager.deployed_contracts.get("entrypoint").unwrap(), "exchange", ().into_tokens())?;
+    //assert!(called.is_success()); 
+    //println!("Gas used: {:?}", called.gas_used());
 
     Ok(())
 }

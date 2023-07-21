@@ -18,6 +18,8 @@ interface IERC20 {
 
 /// @dev Simple infinitely liquid exchange!
 contract Exchange {
+    string public constant version = "v1.0.0";
+
     mapping(address denomination => mapping(address token => uint256 price))
         public _prices;
 
