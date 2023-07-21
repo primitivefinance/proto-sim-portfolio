@@ -1,7 +1,9 @@
 use arbiter::{manager, environment::contract::SimulationContract};
-use bindings::{exchange};
 use arbiter::agent::Agent;
 use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
+
+// dynamic imports... generate with build.sh
+use bindings::{exchange};
 
 
 fn main() {
