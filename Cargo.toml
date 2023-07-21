@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 arbiter = { path = "../arbiter-fork" }
+bindings = {path = "out/bindings"}
+m3-rs = { path ="../af-rs" }

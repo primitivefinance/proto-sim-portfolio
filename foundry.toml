@@ -1,0 +1,13 @@
+[profile.default]
+libs = ["lib"]
+out = "out"
+src = "contracts" # not default! 
+
+[fmt]
+bracket_spacing = true
+int_types = 'long'
+line_length = 80
+multiline_func_header = 'params_first'
+quote_style = 'double'
+tab_width = 4
+wrap_comments = false
