@@ -10,3 +10,8 @@ arbiter = { git = "https://github.com/Alexangelj/arbiter.git" }
 bindings = {path = "out/bindings"}
 m3-rs = { git = "https://github.com/primitivefinance/m3-rs.git" }
 tokio = { version = "1.28.1", features = ["macros", "full"] }
+bytes = "1.4.0"
+hex = { version = "0.4.3", default-features = false }
+revm = "3.3.0"
+ruint = "1.8.0"
+ethers = { version = "2.0.4", default-features = false, features = ["abigen"] }

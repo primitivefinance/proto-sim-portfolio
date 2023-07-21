@@ -3452,7 +3452,12 @@ version = "0.1.0"
 dependencies = [
  "arbiter",
  "bindings",
+ "bytes",
+ "ethers",
+ "hex",
  "m3-rs",
+ "revm",
+ "ruint",
  "tokio",
 ]
 
