@@ -31,7 +31,11 @@ contract Exchange {
     }
 
     /// @dev Sets a price for a token in a denomination, in WAD units.
-    function set(address token, address denomination, uint256 price) public {
+    function setPrice(
+        address token,
+        address denomination,
+        uint256 price
+    ) public {
         _prices[denomination][token] = price;
     }
 
