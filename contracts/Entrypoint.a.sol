@@ -2,17 +2,16 @@
 pragma solidity ^0.8.18;
 
 import "solmate/tokens/ERC20.sol";
-import "solmate/tokens/WETH.sol";
 import "solmate/test/utils/mocks/MockERC20.sol";
 
 import "./ArbiterContract.sol";
 import { Actor } from "./Actor.sol";
 import { Exchange } from "./Exchange.sol";
 
-import "portfolio/test/SimpleRegistry.sol";
-import "portfolio/Portfolio.sol";
+import "portfolio/interfaces/IPortfolio.sol";
 
 contract Entrypoint is ArbiterContract {
+    string public constant PORTFOLIO_VERSION = "v1.4.0-beta";
     uint256 public constant startBalance = 4_809e18;
 
     address public _actor;
@@ -27,13 +26,16 @@ contract Entrypoint is ArbiterContract {
      * @notice
      * Called by SimulationManager to initialize the simulation in setup.rs.
      *
-     * @param input abi.encode(string version)
+     * @param input abi.encode(weth, portfolio)
      */
     function start(bytes memory input)
         public
         override
         returns (bytes memory output)
     {
+        (address weth_, address portfolio) =
+            abi.decode(input, (address, address));
+
         // actor
         _actor = address(new Actor());
 
@@ -49,10 +51,10 @@ contract Entrypoint is ArbiterContract {
         MockERC20(token1).mint(_actor, startBalance);
 
         // weth
-        weth = address(new WETH());
+        weth = weth_;
 
         // subject
-        _subject = address(new Portfolio(weth, address(new SimpleRegistry())));
+        _subject = portfolio;
 
         // token approvals
         address[] memory spenders = new address[](2);
@@ -82,15 +84,16 @@ contract Entrypoint is ArbiterContract {
     }
 
     function _init(bytes memory input) internal {
-        (string memory version) = abi.decode(input, (string));
+        input; // dont use
 
         // Create the pair.
-        Portfolio(payable(subject())).createPair(token0, token1);
+        IPortfolio(payable(subject())).createPair(token0, token1);
 
         // Verify the version!
         require(
-            keccak256(abi.encodePacked(Portfolio(payable(subject())).VERSION()))
-                == keccak256(abi.encodePacked(version)),
+            keccak256(
+                abi.encodePacked(IPortfolio(payable(subject())).VERSION())
+            ) == keccak256(abi.encodePacked(PORTFOLIO_VERSION)),
             "version mismatch"
         );
     }

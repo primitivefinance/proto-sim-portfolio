@@ -3,10 +3,8 @@ pragma solidity ^0.8.4;
 
 import "portfolio/strategies/NormalStrategyLib.sol";
 
-uint256 constant WAD = 1e18;
-
 function toInt(uint256 x) pure returns (int256) {
-    if (x > type(int256).max) revert("toInt: overflow");
+    if (x > uint256(type(int256).max)) revert("toInt: overflow");
     return int256(x);
 }
 
@@ -15,8 +13,8 @@ function toUint(int256 x) pure returns (uint256) {
 }
 
 library ExtendedNormalCurveLib {
-    using Gaussian for uint256;
-    using FixedPointMathLib for uint256;
+    using Gaussian for *;
+    using FixedPointMathLib for *;
     using { toInt } for uint256;
     using { toUint } for int256;
 
@@ -36,12 +34,14 @@ library ExtendedNormalCurveLib {
 
         // ln(m/γK)
         int256 logResult = marginalPriceWad.divWadDown(
-            gammaPctWad.mul(self.strikePriceWad)
+            gammaPctWad.mulWadDown(self.strikePriceWad)
         ).toInt().lnWad();
 
         // ln(m/γK) σ√τ + 1/2σ√τ
-        int256 cdfInput =
-            (logResult.mulWadDown(stdDevSqrtTau) + stdDevSqrtTau / 2).toInt();
+        int256 cdfInput = (
+            logResult * stdDevSqrtTau.toInt() / WAD.toInt()
+                + stdDevSqrtTau.toInt() / 2
+        );
 
         // Φ( ln(m/γK) σ√τ + 1/2σ√τ)
         int256 result =
@@ -69,14 +69,16 @@ library ExtendedNormalCurveLib {
             marginalPriceWad.divWadDown(self.strikePriceWad).toInt().lnWad();
 
         // ln(m/K) σ√τ − 1/2 σ√τ
-        int256 cdfInput =
-            (logResult.mulWadDown(stdDevSqrtTau) - stdDevSqrtTau / 2).toInt();
+        int256 cdfInput = (
+            logResult * stdDevSqrtTau.toInt() / WAD.toInt()
+                - stdDevSqrtTau.toInt() / 2
+        );
 
         // KΦ( ln(m/K) σ√τ − 1/2 σ√τ)
         int256 result = (
-            self.strikePriceWad.mulWadDown(cdfInput.cdf()) + invariant
-                - self.reserveYPerWad.toInt()
-        ).toInt();
+            self.strikePriceWad.toInt() * cdfInput.cdf() / WAD.toInt()
+                + invariant - self.reserveYPerWad.toInt()
+        );
 
         return result.toUint().divWadDown(gammaPctWad);
     }
