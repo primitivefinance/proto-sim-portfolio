@@ -9,4 +9,4 @@ edition = "2021"
 arbiter = { path = "../arbiter-fork" }
 bindings = {path = "out/bindings"}
 m3-rs = { path ="../af-rs" }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.28.1", features = ["macros", "full"] }
