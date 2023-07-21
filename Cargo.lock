@@ -3451,6 +3451,7 @@ dependencies = [
  "arbiter",
  "bindings",
  "m3-rs",
+ "tokio",
 ]
 
 [[package]]
