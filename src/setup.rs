@@ -1,10 +1,10 @@
 use arbiter::agent::Agent;
-// dynamic imports... generate with build.sh
 use arbiter::{
     environment::contract::SimulationContract,
     manager,
     utils::{recast_address, unpack_execution},
 };
+// dynamic imports... generate with build.sh
 use bindings::{actor, entrypoint, exchange, mock_erc20, portfolio, weth};
 use ethers::{
     abi::{encode_packed, Token, Tokenize},

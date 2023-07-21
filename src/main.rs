@@ -1,11 +1,13 @@
-use arbiter::agent::Agent;
+use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
 use arbiter::{manager, utils::unpack_execution};
 use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
 use setup::run;
+use step::step;
 
 // dynamic imports... generate with build.sh
 
 mod setup;
+mod step;
 
 #[tokio::main]
 
@@ -21,6 +23,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Base model is struct for informational data, set objective for parameters and determining a
     // model, objective trait has methods like get_reported_price
+
+    // 1. Generate price process
+    // 2. Setup agents
+    // 3. Create pool
+    // 4. Allocate liquidity
+    // 5. Create step.rs -> update exchange with next price
+    // 6. Create task.rs -> read exchange state, determine actor response
+
+    // Generate price process
+    let ou = OU::new(0.01, 10.0, 1.0);
+    let price_path = PriceProcess::new(
+        PriceProcessType::OU(ou),
+        0.01,
+        "trade".to_string(),
+        500,
+        1.0,
+        1,
+    )
+    .generate_price_path()
+    .1;
+
+    for price in price_path {
+        step(&mut manager, price)?;
+    }
 
     let mut strategy = BaseModel::new(
         "NormalStrategy".to_string(),
