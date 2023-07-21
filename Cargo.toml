@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arbiter = { path = "../arbiter-fork" }
+arbiter = { git = "https://github.com/Alexangelj/arbiter.git" }
 bindings = {path = "out/bindings"}
-m3-rs = { path ="../af-rs" }
+m3-rs = { git = "https://github.com/primitivefinance/m3-rs.git" }
 tokio = { version = "1.28.1", features = ["macros", "full"] }

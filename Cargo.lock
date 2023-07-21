@@ -211,6 +211,7 @@ dependencies = [
 [[package]]
 name = "arbiter"
 version = "0.2.0"
+source = "git+https://github.com/Alexangelj/arbiter.git#9b6dcff0add194d6781add696de711f619c54cac"
 dependencies = [
  "async-trait",
  "bytes",
@@ -347,9 +348,9 @@ checksum = "619743e34b5ba4e9703bba34deac3427c72507c7159f5fd030aea8cac0cfe341"
 
 [[package]]
 name = "async-trait"
-version = "0.1.71"
+version = "0.1.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a564d521dd56509c4c47480d00b80ee55f7e385ae48db5744c67ad50c92d2ebf"
+checksum = "cc6dde6e4ed435a4c1ee4e73592f5ba9da2151af10076cc04858746af9352d09"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1262,9 +1263,9 @@ dependencies = [
 
 [[package]]
 name = "enumn"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9838a970f5de399d3070ae1739e131986b2f5dcc223c7423ca0927e3a878522"
+checksum = "b893c4eb2dc092c811165f84dc7447fae16fb66521717968c34c509b39b1a5c5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2459,6 +2460,7 @@ dependencies = [
 [[package]]
 name = "m3-rs"
 version = "0.1.0"
+source = "git+https://github.com/primitivefinance/m3-rs.git#65232a0b18b237c2bb03a3dba5220dbf0fce2eb6"
 dependencies = [
  "alloy-dyn-abi",
  "alloy-json-abi",
@@ -3359,9 +3361,9 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 
 [[package]]
 name = "prettyplease"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aea97f0167426c9ca51bc27fcf5ba6130b36012263316a1db75e5f38daf0d1e5"
+checksum = "6c64d9ba0963cdcea2e1b2230fbae2bab30eb25a174be395c41e764bfb65dd62"
 dependencies = [
  "proc-macro2",
  "syn 2.0.27",
@@ -4173,18 +4175,18 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"
-version = "1.0.173"
+version = "1.0.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91f70896d6720bc714a4a57d22fc91f1db634680e65c8efe13323f1fa38d53f"
+checksum = "3b88756493a5bd5e5395d53baa70b194b05764ab85b59e43e4b8f4e1192fa9b1"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.173"
+version = "1.0.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6250dde8342e0232232be9ca3db7aa40aceb5a3e5dd9bddbc00d99a007cde49"
+checksum = "6e5c3a298c7f978e53536f95a63bdc4c4a64550582f31a0359a9afda6aede62e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4204,9 +4206,9 @@ dependencies = [
 
 [[package]]
 name = "serde_repr"
-version = "0.1.14"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d89a8107374290037607734c0b73a85db7ed80cae314b3c5791f192a496e731"
+checksum = "e168eaaf71e8f9bd6037feb05190485708e019f4fd87d161b3c0a0d37daf85e5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4656,18 +4658,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.43"
+version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a35fc5b8971143ca348fa6df4f024d4d55264f3468c71ad1c2f365b0a4d58c42"
+checksum = "611040a08a0439f8248d1990b111c95baa9c704c805fa1f62104b39655fd7f90"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.43"
+version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "463fe12d7993d3b327787537ce8dd4dfa058de32fc2b195ef3cde03dc4771e8f"
+checksum = "090198534930841fab3a5d1bb637cde49e339654e606195f8d9c76eeb081dc96"
 dependencies = [
  "proc-macro2",
  "quote",
