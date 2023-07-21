@@ -1,5 +1,7 @@
 
 
+use bindings::{EntryPoint};
+
 fn run(manager: &mut SimulationManager) -> Result<(), Box<dyn std::error::Error>> {
     // Deploy tokens
 
