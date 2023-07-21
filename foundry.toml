@@ -2,6 +2,10 @@
 libs = ["lib"]
 out = "out"
 src = "contracts" # not default! 
+remappings = [
+    'forge-std/=lib/forge-std/src/',
+  'solmate/=lib/solmate/src/'
+]
 
 [fmt]
 bracket_spacing = true
