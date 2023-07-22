@@ -1,19 +1,30 @@
 use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
 use arbiter::{manager, utils::unpack_execution};
 use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
-use setup::run;
-use step::step;
 
 // dynamic imports... generate with build.sh
 
+mod log;
 mod setup;
 mod step;
+mod task;
 
 #[tokio::main]
 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Simulation setup
+
     let mut manager = manager::SimulationManager::new();
-    run(&mut manager)?;
+
+    setup::run(&mut manager)?;
+
+    let mut sim_data = log::SimData {
+        pool_data: Vec::new(),
+        actor_balances: Vec::new(),
+        reference_prices: Vec::new(),
+    };
+
+    log::run(&mut manager, &mut sim_data)?;
     let weth = manager.deployed_contracts.get("weth");
     let portfolio = manager.deployed_contracts.get("portfolio");
     let exchange = manager.deployed_contracts.get("exchange");
@@ -44,8 +55,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .generate_price_path()
     .1;
 
+    // Simulation loop
+
     for price in price_path {
-        step(&mut manager, price)?;
+        // Adjusts the reference market price
+        step::step(&mut manager, price)?;
+
+        // Runs the actor tasks
+        task::run(&mut manager)?;
     }
 
     let mut strategy = BaseModel::new(
@@ -69,6 +86,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //setup::run(&mut manager).await.unwrap();
     println!("Simulation ran setup");
+
+    // Simulation finish and log
 
     Ok(())
 }

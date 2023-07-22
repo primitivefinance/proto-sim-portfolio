@@ -14,4 +14,6 @@ contract Actor is ArbiterContract {
         (bool success, bytes memory returnData) = target.call(data);
         require(success, string(returnData));
     }
+
+    function step() public returns (bytes memory output) { }
 }

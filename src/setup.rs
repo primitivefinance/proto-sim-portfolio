@@ -63,7 +63,11 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
     )?;
 
     println!("Entrypoint encoded: {:?}", encoded);
-    admin.call(entrypoint_callable, "start", vec![Token::Bytes(encoded)])?;
+    let start_call = admin.call(entrypoint_callable, "start", vec![Token::Bytes(encoded)])?;
+    println!(
+        "Entrypoint start call result: {:?}",
+        unpack_execution(start_call)
+    );
 
     let exchange = admin.call(entrypoint_callable, "exchange", vec![])?;
     let exchange_address: H160 =
@@ -110,6 +114,15 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
     manager
         .deployed_contracts
         .insert("actor".to_string(), actor_contract);
+
+    let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
+    let get_pair_nonce = admin.call(portfolio, "getPairNonce", vec![])?;
+    let get_pair_nonce_result: u64 =
+        portfolio.decode_output("getPairNonce", unpack_execution(get_pair_nonce)?)?;
+    println!(
+        "portfolio get_pair_nonce result: {:?}",
+        get_pair_nonce_result
+    );
 
     Ok(())
 }

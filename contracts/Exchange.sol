@@ -20,38 +20,32 @@ interface IERC20 {
 contract Exchange {
     string public constant version = "v1.0.0";
 
-    mapping(address denomination => mapping(address token => uint256 price))
-        public _prices;
+    mapping(address token => uint256 price) public _prices;
 
-    function getPrice(
-        address token,
-        address denomination
-    ) public view returns (uint256) {
-        return _prices[denomination][token]; // price = token / denomination
+    function getPrice(address token) public view returns (uint256) {
+        return _prices[token]; // price = token / denomination
     }
 
     /// @dev Sets a price for a token in a denomination, in WAD units.
-    function setPrice(
-        address token,
-        address denomination,
-        uint256 price
-    ) public {
-        _prices[denomination][token] = price;
+    function setPrice(address token, uint256 price) public {
+        _prices[token] = price;
     }
 
     function trade(
         address asset,
         address quote,
         bool sellAsset,
-        uint256 amount
+        uint256 amountIn
     ) public {
-        uint256 price =
-            sellAsset ? _prices[quote][asset] : _prices[asset][quote]; // selling asset ? price = quote / asset : price = asset / quote
+        uint256 price = _prices[asset]; // selling asset ? price = quote / asset : price = asset / quote
 
         uint256 unit = 10 ** IERC20(sellAsset ? quote : asset).decimals();
 
-        _debit(sellAsset ? asset : quote, amount);
-        _credit(sellAsset ? quote : asset, amount * price / unit);
+        uint256 amountOut =
+            sellAsset ? amountIn * price / unit : amountIn * 1e18 / price; // Cancel numerator units out.
+
+        _debit(sellAsset ? asset : quote, amountIn);
+        _credit(sellAsset ? quote : asset, amountOut);
     }
 
     function _debit(address token, uint256 amount) internal {
