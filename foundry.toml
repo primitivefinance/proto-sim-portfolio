@@ -5,7 +5,7 @@ src = "contracts" # not default!
 remappings = [
     'forge-std/=lib/forge-std/src/',
     'solmate/=lib/solmate/src/',
-    'portfolio/=lib/portfolio/contracts/'
+    'portfolio/=lib/portfolio/contracts/',
 ]
 auto_detect_remappings = true
 

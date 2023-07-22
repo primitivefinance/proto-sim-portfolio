@@ -34,6 +34,7 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         (
             recast_address(weth_contract.address),
             Address::from(B160::from(0)),
+            Address::from(B160::zero()),
         )
             .into_tokens(),
     )?;
@@ -200,6 +201,7 @@ pub fn init_pool(manager: &manager::SimulationManager) -> Result<u64, Box<dyn st
                 create_pool_args.fee_basis_points,
                 create_pool_args.priority_fee_basis_points,
                 create_pool_args.controller,
+                create_pool_args.strategy,
                 create_pool_args.strategy_args,
             )
                 .into_tokens(),
