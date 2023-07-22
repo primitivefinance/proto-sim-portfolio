@@ -1,4 +1,5 @@
-use arbiter::agent::Agent;
+use arbiter::agent::simple_arbitrageur::SimpleArbitrageur;
+use arbiter::agent::{Agent, AgentType, SimulationEventFilter};
 use arbiter::{
     environment::contract::SimulationContract,
     manager,
@@ -8,10 +9,12 @@ use arbiter::{
 use bindings::{actor, entrypoint, exchange, mock_erc20, portfolio, weth};
 use ethers::{
     abi::{encode_packed, Token, Tokenize},
-    prelude::Address,
+    prelude::{Address, U256},
     types::H160,
 };
 use revm::primitives::B160;
+
+use super::common;
 
 pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
@@ -124,5 +127,27 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         get_pair_nonce_result
     );
 
+    setup_agent(manager);
+
     Ok(())
+}
+
+fn setup_agent(manager: &mut manager::SimulationManager) {
+    let exchange = manager.deployed_contracts.get("exchange").unwrap();
+
+    let mut event_filters = Vec::new();
+    event_filters.push(SimulationEventFilter::new(exchange, "PriceChange"));
+
+    let agent = SimpleArbitrageur::new(
+        "arbitrageur".to_string(),
+        event_filters,
+        revm::primitives::U256::from(common::WAD as u128) / revm::primitives::U256::from(100),
+    );
+
+    manager
+        .activate_agent(
+            AgentType::SimpleArbitrageur(agent),
+            B160::from_low_u64_be(2),
+        )
+        .unwrap();
 }

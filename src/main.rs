@@ -1,9 +1,14 @@
 use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
-use arbiter::{manager, utils::unpack_execution};
+use arbiter::{
+    agent::{Agent, AgentType},
+    manager::SimulationManager,
+    utils::unpack_execution,
+};
 use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
 
 // dynamic imports... generate with build.sh
 
+mod common;
 mod log;
 mod setup;
 mod step;
@@ -14,7 +19,7 @@ mod task;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Simulation setup
 
-    let mut manager = manager::SimulationManager::new();
+    let mut manager = SimulationManager::new();
 
     setup::run(&mut manager)?;
 
@@ -57,37 +62,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Simulation loop
 
-    for price in price_path {
-        // Adjusts the reference market price
-        step::step(&mut manager, price)?;
+    let arbitrageur = manager.agents.get("arbitrageur").unwrap();
+    let arbitrageur = match arbitrageur {
+        AgentType::SimpleArbitrageur(arbitrageur) => arbitrageur,
+        _ => panic!("Arbitrageur not found! Was it initialized in setup.rs?"),
+    };
 
-        // Runs the actor tasks
-        task::run(&mut manager)?;
+    let mut index: usize = 1;
+
+    // note: arbitrageur borrows manager so it can't be used in the loop...
+    while let Ok((next_tx, _sell_asset)) = arbitrageur.detect_price_change().await {
+        if index >= price_path.len() {
+            // end sim
+            break;
+        }
+
+        let price_f64 = price_path[index];
+
+        // Run's the arbitrageur's task given the next desired tx.
+        task::run(&mut manager, price_f64, next_tx)?;
+
+        // Increments the simulation forward.
+        step::run(&mut manager, price_f64)?;
+
+        // Logs the simulation data.
+        log::run(&mut manager, &mut sim_data)?;
+
+        // Increments the simulation loop.
+        index += 1;
     }
 
-    let mut strategy = BaseModel::new(
-        "NormalStrategy".to_string(),
-        "v1.4.0-beta".to_string(),
-        "x".to_string(),
-        "id".to_string(),
-    );
-
-    strategy.set_objective(Box::new(RMM01 {
-        strike: 1_f64,
-        volatility: 0.1_f64,
-        time_to_maturity: 1.0_f64,
-    }));
-
-    let price = strategy
-        .objective
-        .expect("No objective set!")
-        .get_reported_price();
-    println!("Price: {:?}", price);
-
-    //setup::run(&mut manager).await.unwrap();
-    println!("Simulation ran setup");
+    println!("Simulation loop finished.");
 
     // Simulation finish and log
+    manager.shutdown();
+
+    println!("Simulation finished.");
 
     Ok(())
 }

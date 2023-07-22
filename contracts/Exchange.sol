@@ -20,6 +20,8 @@ interface IERC20 {
 contract Exchange {
     string public constant version = "v1.0.0";
 
+    event PriceChange(uint256 price);
+
     mapping(address token => uint256 price) public _prices;
 
     function getPrice(address token) public view returns (uint256) {
@@ -29,6 +31,7 @@ contract Exchange {
     /// @dev Sets a price for a token in a denomination, in WAD units.
     function setPrice(address token, uint256 price) public {
         _prices[token] = price;
+        emit PriceChange(price);
     }
 
     function trade(
