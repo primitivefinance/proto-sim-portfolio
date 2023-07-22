@@ -26,7 +26,7 @@ pub struct SimData {
 // 2. Actor token balances
 // 3. Reference market prices
 pub fn run(
-    manager: &mut SimulationManager,
+    manager: &SimulationManager,
     sim_data: &mut SimData,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();

@@ -7,7 +7,7 @@ use ethers::abi::Tokenize;
 
 /// Moves the simulation forward a step.
 
-pub fn run(manager: &mut SimulationManager, price: f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(manager: &SimulationManager, price: f64) -> Result<(), Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
     let exchange = manager.deployed_contracts.get("exchange").unwrap();
     let token = manager.deployed_contracts.get("token0").unwrap();
@@ -20,7 +20,7 @@ pub fn run(manager: &mut SimulationManager, price: f64) -> Result<(), Box<dyn st
     )?;
 
     match new_price_call.is_success() {
-        true => println!("New price set: {}", price),
+        true => {} //println!("New price set: {:#?}", new_price_call),
         false => println!("New price failed to set: {}", price),
     }
 

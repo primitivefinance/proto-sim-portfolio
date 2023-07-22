@@ -135,13 +135,12 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
 fn setup_agent(manager: &mut manager::SimulationManager) {
     let exchange = manager.deployed_contracts.get("exchange").unwrap();
 
-    let mut event_filters = Vec::new();
-    event_filters.push(SimulationEventFilter::new(exchange, "PriceChange"));
+    let event_filters = vec![SimulationEventFilter::new(exchange, "PriceChange")];
 
     let agent = SimpleArbitrageur::new(
-        "arbitrageur".to_string(),
+        "arbitrageur",
         event_filters,
-        revm::primitives::U256::from(common::WAD as u128) / revm::primitives::U256::from(100),
+        revm::primitives::U256::from(common::WAD as u128) - revm::primitives::U256::from(100),
     );
 
     manager

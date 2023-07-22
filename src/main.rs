@@ -1,3 +1,5 @@
+use arbiter::agent::simple_arbitrageur::SimpleArbitrageur;
+use arbiter::agent::IsActive;
 use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
 use arbiter::{
     agent::{Agent, AgentType},
@@ -5,6 +7,7 @@ use arbiter::{
     utils::unpack_execution,
 };
 use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
+use revm::primitives::U256;
 
 // dynamic imports... generate with build.sh
 
@@ -48,12 +51,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6. Create task.rs -> read exchange state, determine actor response
 
     // Generate price process
-    let ou = OU::new(0.01, 10.0, 1.0);
+    let ou = OU::new(1.0, 10.0, 1.0);
     let price_path = PriceProcess::new(
         PriceProcessType::OU(ou),
         0.01,
         "trade".to_string(),
-        500,
+        10, // temp: 500,
         1.0,
         1,
     )
@@ -68,31 +71,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => panic!("Arbitrageur not found! Was it initialized in setup.rs?"),
     };
 
-    let mut index: usize = 1;
+    // todo: cleanup this code block..
+    // Initialize the arbitrageur's start prices.
+    let mut prices = arbitrageur.prices.lock().await;
+    prices[0] = U256::from(price_path[0]).into();
+    prices[1] = U256::from(price_path[0]).into();
+    drop(prices);
+
+    // Run the first price update. This is important, as it triggers the arb detection.
+    step::run(&manager, price_path[0])?;
 
     // note: arbitrageur borrows manager so it can't be used in the loop...
+    let mut index: usize = 1;
     while let Ok((next_tx, _sell_asset)) = arbitrageur.detect_price_change().await {
         if index >= price_path.len() {
             // end sim
+            println!("Ending sim loop at index: {}", index);
             break;
         }
+
+        println!(
+            "====== Sim step: {}, price: {} =========",
+            index, price_path[index]
+        );
 
         let price_f64 = price_path[index];
 
         // Run's the arbitrageur's task given the next desired tx.
-        task::run(&mut manager, price_f64, next_tx)?;
-
-        // Increments the simulation forward.
-        step::run(&mut manager, price_f64)?;
+        task::run(&manager, price_f64, next_tx)?;
 
         // Logs the simulation data.
-        log::run(&mut manager, &mut sim_data)?;
+        log::run(&manager, &mut sim_data)?;
+
+        // Increments the simulation forward.
+        step::run(&manager, price_f64)?;
 
         // Increments the simulation loop.
         index += 1;
     }
-
-    println!("Simulation loop finished.");
 
     // Simulation finish and log
     manager.shutdown();
