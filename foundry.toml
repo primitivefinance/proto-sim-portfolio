@@ -7,6 +7,7 @@ remappings = [
     'solmate/=lib/solmate/src/',
     'portfolio/=lib/portfolio/contracts/'
 ]
+auto_detect_remappings = true
 
 [fmt]
 bracket_spacing = true
