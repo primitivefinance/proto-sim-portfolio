@@ -12,6 +12,17 @@ interface NormalStrategyLike {
         external
         view
         returns (PortfolioConfig memory);
+
+    function getStrategyData(
+        uint256 strikePriceWad,
+        uint256 volatilityBasisPoints,
+        uint256 durationSeconds,
+        bool isPerpetual,
+        uint256 priceWad
+    )
+        external
+        view
+        returns (bytes memory strategyData, uint256 initialX, uint256 initialY);
 }
 
 contract Arbitrageur {
@@ -34,6 +45,7 @@ contract Arbitrageur {
             NormalStrategyLike(address(strategy)).configs(poolId);
 
         NormalCurve memory curve = config.transform();
+        if (config.isPerpetual) curve.timeRemainingSeconds = SECONDS_PER_YEAR;
         curve.reserveXPerWad = pool.virtualX.divWadDown(pool.liquidity);
         curve.reserveYPerWad = pool.virtualY.divWadDown(pool.liquidity);
 
@@ -46,16 +58,13 @@ contract Arbitrageur {
             curve.computeXInputGivenMarginalPrice(priceWad, gammaPctWad);
 
         // If xInput is 0, then we need to compute yInput, since we don't need to change x in a positive direction (sell it).
-        if (xInput == 0) sellAsset = false;
-        else input = xInput;
+        if (xInput > 0) return _getOrder(portfolio, poolId, true, xInput);
 
         uint256 yInput =
             curve.computeYInputGivenMarginalPrice(priceWad, gammaPctWad, 0);
+        if (yInput > 0) return _getOrder(portfolio, poolId, false, yInput);
 
-        if (yInput == 0) sellAsset = true;
-        else input = yInput;
-
-        return _getOrder(portfolio, poolId, sellAsset, input);
+        require(false, "Failed to get arbitrage order");
     }
 
     function _getOrder(
@@ -64,9 +73,11 @@ contract Arbitrageur {
         bool sellAsset,
         uint256 input
     ) internal view returns (Order memory order) {
+        require(input > 0, "Input is zero");
         uint256 output = IPortfolio(portfolio).getAmountOut(
             poolId, sellAsset, input, msg.sender
         );
+        require(output > 0, "Output is zero");
 
         order = Order({
             poolId: poolId,
@@ -75,6 +86,31 @@ contract Arbitrageur {
             sellAsset: sellAsset,
             useMax: false
         });
+    }
+
+    /// very temporary
+    /// wraps the strategy interface so we can get the initial reserves and encoded strategy args
+    function getCreatePoolComputedArgs(
+        address portfolio,
+        uint256 strikePriceWad,
+        uint256 volatilityBasisPoints,
+        uint256 durationSeconds,
+        bool isPerpetual,
+        uint256 priceWad
+    )
+        public
+        view
+        returns (bytes memory strategyData, uint256 initialX, uint256 initialY)
+    {
+        return NormalStrategyLike(
+            address(IStrategy(IPortfolio(portfolio).DEFAULT_STRATEGY()))
+        ).getStrategyData(
+            strikePriceWad,
+            volatilityBasisPoints,
+            durationSeconds,
+            isPerpetual,
+            priceWad
+        );
     }
 }
 

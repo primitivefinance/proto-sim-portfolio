@@ -49,6 +49,8 @@ contract Entrypoint is ArbiterContract {
         // token minting
         MockERC20(token0).mint(_actor, startBalance);
         MockERC20(token1).mint(_actor, startBalance);
+        MockERC20(token0).mint(msg.sender, startBalance);
+        MockERC20(token1).mint(msg.sender, startBalance);
 
         // weth
         weth = weth_;

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "portfolio/strategies/NormalStrategyLib.sol";
+import { console2 as logger } from "forge-std/Console2.sol";
 
 function toInt(uint256 x) pure returns (int256) {
     if (x > uint256(type(int256).max)) revert("toInt: overflow");
@@ -9,6 +10,8 @@ function toInt(uint256 x) pure returns (int256) {
 }
 
 function toUint(int256 x) pure returns (uint256) {
+    if (x < 0) return 0;
+
     return uint256(x);
 }
 
@@ -46,6 +49,8 @@ library ExtendedNormalCurveLib {
         // Φ( ln(m/γK) σ√τ + 1/2σ√τ)
         int256 result =
             WAD.toInt() - self.reserveXPerWad.toInt() - cdfInput.cdf();
+
+        logger.logInt(result);
 
         return result.toUint().divWadDown(gammaPctWad);
     }

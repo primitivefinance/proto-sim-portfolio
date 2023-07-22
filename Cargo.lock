@@ -211,7 +211,7 @@ dependencies = [
 [[package]]
 name = "arbiter"
 version = "0.2.0"
-source = "git+https://github.com/Alexangelj/arbiter.git#37f4829ca6d733f765c472c3deb338c9ab2d0fe5"
+source = "git+https://github.com/Alexangelj/arbiter.git#3e90eeb66d91f441ba1fa26eb5607e047bc98e0c"
 dependencies = [
  "async-trait",
  "bytes",

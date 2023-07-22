@@ -71,12 +71,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => panic!("Arbitrageur not found! Was it initialized in setup.rs?"),
     };
 
-    // todo: cleanup this code block..
     // Initialize the arbitrageur's start prices.
-    let mut prices = arbitrageur.prices.lock().await;
-    prices[0] = U256::from(price_path[0]).into();
-    prices[1] = U256::from(price_path[0]).into();
-    drop(prices);
+    setup::init_arbitrageur(arbitrageur, price_path.clone()).await;
+
+    // Initialize the pool.
+    let pool_id = setup::init_pool(&manager)?;
+
+    // Add liquidity to the pool
+    setup::allocate_liquidity(&manager, pool_id)?;
 
     // Run the first price update. This is important, as it triggers the arb detection.
     step::run(&manager, price_path[0])?;
@@ -98,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let price_f64 = price_path[index];
 
         // Run's the arbitrageur's task given the next desired tx.
-        task::run(&manager, price_f64, next_tx)?;
+        task::run(&manager, price_f64, next_tx, pool_id)?;
 
         // Logs the simulation data.
         log::run(&manager, &mut sim_data)?;
