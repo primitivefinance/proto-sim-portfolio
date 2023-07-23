@@ -58,11 +58,15 @@ contract Arbitrageur {
             curve.computeXInputGivenMarginalPrice(priceWad, gammaPctWad);
 
         // If xInput is 0, then we need to compute yInput, since we don't need to change x in a positive direction (sell it).
-        if (xInput > 0) return _getOrder(portfolio, poolId, true, xInput);
+        if (xInput > 0) {
+            return _getOrder(portfolio, poolId, true, xInput, pool.liquidity);
+        }
 
         uint256 yInput =
             curve.computeYInputGivenMarginalPrice(priceWad, gammaPctWad, 0);
-        if (yInput > 0) return _getOrder(portfolio, poolId, false, yInput);
+        if (yInput > 0) {
+            return _getOrder(portfolio, poolId, false, yInput, pool.liquidity);
+        }
 
         require(false, "Failed to get arbitrage order");
     }
@@ -71,9 +75,15 @@ contract Arbitrageur {
         address portfolio,
         uint64 poolId,
         bool sellAsset,
-        uint256 input
+        uint256 input,
+        uint256 liquidity
     ) internal view returns (Order memory order) {
         require(input > 0, "Input is zero");
+
+        // The input amount must be multiplied by the liquidity...
+        // this is because the arbitrage math computes the input/output amounts
+        // on a per liquidity basis, due to the constraints with the trading function.
+        input = input.mulWadDown(liquidity);
         uint256 output = IPortfolio(portfolio).getAmountOut(
             poolId, sellAsset, input, msg.sender
         );
