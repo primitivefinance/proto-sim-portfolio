@@ -36,12 +36,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         portfolio_prices: Vec::new(),
     };
 
-    let weth = manager.deployed_contracts.get("weth").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-    let exchange = manager.deployed_contracts.get("exchange").unwrap();
     let token0 = manager.deployed_contracts.get("token0").unwrap();
     let token1 = manager.deployed_contracts.get("token1").unwrap();
-    let actor = manager.deployed_contracts.get("actor").unwrap();
 
     // Base model is struct for informational data, set objective for parameters and determining a
     // model, objective trait has methods like get_reported_price
