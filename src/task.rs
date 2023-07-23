@@ -19,13 +19,11 @@ pub fn run(
     next_tx: NextTx,
     pool_id: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let actor = manager.deployed_contracts.get("actor").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-
-    let price_wad = float_to_wad(price);
 
     // todo: we should be aware of the liquidity distribution at this price...
     // right now we get 0 arb amounts so we fail to get a swap order
+    let price_wad = float_to_wad(price);
     match next_tx {
         NextTx::Swap => {
             // do the arbitrage

@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut sim_data = log::SimData {
         pool_data: Vec::new(),
-        actor_balances: Vec::new(),
+        arbitrageur_balances: Vec::new(),
         reference_prices: Vec::new(),
         portfolio_prices: Vec::new(),
     };
@@ -52,12 +52,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6. Create task.rs -> read exchange state, determine actor response
 
     // Generate price process
-    let ou = OU::new(1.0, 10.0, 1.0);
+    let ou = OU::new(0.1, 10.0, 1.0);
     let price_process = PriceProcess::new(
         PriceProcessType::OU(ou),
         0.01,
         "trade".to_string(),
-        10, // temp: 500,
+        500, // temp: 500,
         1.0,
         1,
     );

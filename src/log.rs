@@ -22,7 +22,7 @@ use bindings::i_portfolio_getters::*;
 /// Struct for storing simulation data
 pub struct SimData {
     pub pool_data: Vec<PoolsReturn>,
-    pub actor_balances: Vec<HashMap<u64, U256>>, // maps token index (0 or 1) => balance
+    pub arbitrageur_balances: Vec<HashMap<u64, U256>>, // maps token index (0 or 1) => balance
     pub reference_prices: Vec<U256>,
     pub portfolio_prices: Vec<U256>,
 }
@@ -43,16 +43,16 @@ pub fn run(
     pool_id: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
-    let actor = manager.deployed_contracts.get("actor").unwrap();
+    let arbitrageur = manager.agents.get("arbitrageur").unwrap();
     let token0 = manager.deployed_contracts.get("token0").unwrap();
     let token1 = manager.deployed_contracts.get("token1").unwrap();
 
-    let actor_balance_0 = get_balance(admin, token0, actor.address)?;
-    let actor_balance_1 = get_balance(admin, token1, actor.address)?;
-    let mut actor_balance = HashMap::new();
-    actor_balance.insert(0, actor_balance_0);
-    actor_balance.insert(1, actor_balance_1);
-    sim_data.actor_balances.push(actor_balance);
+    let arbitrageur_balance_0 = get_balance(admin, token0, arbitrageur.address())?;
+    let arbitrageur_balance_1 = get_balance(admin, token1, arbitrageur.address())?;
+    let mut arbitrageur_balance = HashMap::new();
+    arbitrageur_balance.insert(0, arbitrageur_balance_0);
+    arbitrageur_balance.insert(1, arbitrageur_balance_1);
+    sim_data.arbitrageur_balances.push(arbitrageur_balance);
 
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
     let pool_data = get_pool(admin, portfolio, pool_id)?;
@@ -211,18 +211,18 @@ fn make_series(data: &mut SimData) -> Result<DataFrame, Box<dyn std::error::Erro
         .map(wad_to_float)
         .collect::<Vec<f64>>();
 
-    // converts data.actor_balances.get(token0.address) to a float in a vector
+    // converts data.arbitrageur_balances.get(token0.address) to a float in a vector
     let arb_x = data
-        .actor_balances
+        .arbitrageur_balances
         .clone()
         .into_iter()
         .map(|x| *x.get(&0).unwrap())
         .map(wad_to_float)
         .collect::<Vec<f64>>();
 
-    // converts data.actor_balances.get(token1.address) to a float in a vector
+    // converts data.arbitrageur_balances.get(token1.address) to a float in a vector
     let arb_y = data
-        .actor_balances
+        .arbitrageur_balances
         .clone()
         .into_iter()
         .map(|x| *x.get(&1).unwrap())

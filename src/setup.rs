@@ -182,7 +182,8 @@ fn setup_agent(manager: &mut manager::SimulationManager) {
     let agent = SimpleArbitrageur::new(
         "arbitrageur",
         event_filters,
-        revm::primitives::U256::from(common::WAD as u128) - revm::primitives::U256::from(100),
+        revm::primitives::U256::from(common::WAD as u128)
+            - revm::primitives::U256::from(common::FEE_BPS as f64 * 1e18),
     );
 
     manager
@@ -255,11 +256,11 @@ fn build_create_pool_call(manager: &manager::SimulationManager) -> CreatePoolCal
             "getCreatePoolComputedArgs",
             (
                 recast_address(portfolio.address),
-                float_to_wad(1.0),        // strike price wad
-                U256::from(1000_u32),     // vol bps
-                U256::from(31556953_u32), // 1 year duration in seconds
-                true,                     // is perpetual
-                float_to_wad(1.0),        // initial price wad
+                float_to_wad(1.0),                  // strike price wad
+                U256::from(common::VOLATILITY_BPS), // vol bps
+                U256::from(31556953_u32),           // 1 year duration in seconds
+                true,                               // is perpetual
+                float_to_wad(1.0),                  // initial price wad
             )
                 .into_tokens(),
         )
@@ -283,7 +284,7 @@ fn build_create_pool_call(manager: &manager::SimulationManager) -> CreatePoolCal
         pair_id: 1_u32,                             // pairId
         reserve_x_per_wad: computed_args.initial_x, // reserveXPerWad
         reserve_y_per_wad: computed_args.initial_y, // reserveYPerWad
-        fee_basis_points: 100_u16,                  // feeBips
+        fee_basis_points: common::FEE_BPS,          // feeBips
         priority_fee_basis_points: 0_u16,           // priorityFeeBips
         controller: H160::zero(),                   // controller,
         strategy: H160::zero(),                     // address(0) == default strategy
