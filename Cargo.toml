@@ -18,3 +18,5 @@ ethers = { version = "2.0.4", default-features = false, features = ["abigen"] }
 polars = "0.29.0"
 serde = { version = "1.0.163", features= ["derive"]}
 clap = { version = "4.3.0", features = ["derive"] }
+visualize = {git = "https://github.com/primitivefinance/visualization-rs.git", branch = "alex/copy-traits"}
+itertools-num = "0.1.3"

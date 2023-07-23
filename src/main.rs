@@ -4,11 +4,13 @@ use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
 use arbiter::{
     agent::{Agent, AgentType},
     manager::SimulationManager,
-    utils::{recast_address, unpack_execution},
+    utils::{recast_address, unpack_execution, wad_to_float},
 };
 use ethers::abi::Tokenize;
+use itertools_num::linspace;
 use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
 use revm::primitives::U256;
+use visualize::{design::*, plot::*};
 
 // dynamic imports... generate with build.sh
 
@@ -52,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6. Create task.rs -> read exchange state, determine actor response
 
     // Generate price process
-    let ou = OU::new(0.1, 10.0, 1.0);
+    let ou = OU::new(0.01, 10.0, 1.0);
     let price_process = PriceProcess::new(
         PriceProcessType::OU(ou),
         0.01,
@@ -144,7 +146,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     manager.shutdown();
 
     // Write the sim data to a file.
-    log::write_to_file(price_process, &mut sim_data);
+    log::write_to_file(price_process, &mut sim_data)?;
+
+    let display = Display {
+        transparent: false,
+        mode: DisplayMode::Light,
+        show: false,
+    };
+
+    log::plot_reserves(display.clone(), &sim_data);
+    log::plot_prices(display.clone(), &sim_data);
 
     println!("Simulation finished.");
 

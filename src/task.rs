@@ -30,6 +30,12 @@ pub fn run(
             println!("Executing task.");
             let swap_order = get_swap_order(manager, pool_id, price_wad)?;
             println!("Swap order: {:#?}", swap_order);
+
+            if swap_order.input == 0 {
+                println!("No swap order required.");
+                return Ok(());
+            }
+
             let swap_call_result = manager
                 .agents
                 .get("arbitrageur")

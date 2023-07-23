@@ -693,9 +693,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.3.18"
+version = "4.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21b6396aa128fe4149d2af114f746eb048b5667e2844cc51ae90830f45de7ccb"
+checksum = "5fd304a20bff958a57f04c4e96a2e7594cc4490a0e809cbd48bb6437edaa452d"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -704,9 +704,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.3.18"
+version = "4.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d011140df54d9c4c592974ccd7d694dd4ab5b92ea0436435fa900a211d6b0f6"
+checksum = "01c6a3f08f1fe5662a35cfe393aec09c4df95f60ee93b7556505260f75eee9e1"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1190,9 +1190,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.8.1"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
+checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
 
 [[package]]
 name = "elliptic-curve"
@@ -3456,12 +3456,14 @@ dependencies = [
  "clap",
  "ethers",
  "hex",
+ "itertools-num",
  "m3-rs",
  "polars",
  "revm",
  "ruint",
  "serde",
  "tokio",
+ "visualize 0.2.1 (git+https://github.com/primitivefinance/visualization-rs.git?branch=alex/copy-traits)",
 ]
 
 [[package]]
@@ -5035,6 +5037,23 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "visualize"
+version = "0.2.1"
+source = "git+https://github.com/primitivefinance/visualization-rs.git?branch=alex/copy-traits#274c6bac2e21d0c0b778b81da0f3235533018a57"
+dependencies = [
+ "csv",
+ "itertools-num",
+ "mentat",
+ "plotly",
+ "polars",
+ "rand 0.8.5",
+ "rand_distr",
+ "rand_pcg 0.3.1",
+ "serde",
+ "statrs",
+]
 
 [[package]]
 name = "visualize"

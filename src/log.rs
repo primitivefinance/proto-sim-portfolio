@@ -11,10 +11,10 @@ use arbiter::{
     utils::*,
 };
 use ethers::abi::Tokenize;
-use ethers::prelude::k256::sha2::digest::Output;
 use ethers::prelude::U256;
 use polars::prelude::*;
 use revm::primitives::Address;
+use visualize::{design::*, plot::*};
 
 // dynamic... generated with build.sh
 use bindings::i_portfolio_getters::*;
@@ -238,4 +238,245 @@ fn make_series(data: &mut SimData) -> Result<DataFrame, Box<dyn std::error::Erro
         Series::new("arbitrageur_balance_y", arb_y),
     ])?;
     Ok(data)
+}
+
+pub fn plot_reserves(display: Display, data: &SimData) {
+    let title: String = String::from("Reserves");
+
+    let mut curves: Vec<Curve> = Vec::new();
+
+    let reserve_x = data
+        .pool_data
+        .clone()
+        .into_iter()
+        .map(|x| ethers::prelude::types::U256::from(x.virtual_x) / 100)
+        .into_iter()
+        .map(wad_to_float)
+        .collect::<Vec<f64>>();
+
+    let reserve_y = data
+        .pool_data
+        .clone()
+        .into_iter()
+        .map(|y| ethers::prelude::types::U256::from(y.virtual_y) / 100)
+        .map(wad_to_float)
+        .collect::<Vec<f64>>();
+
+    let length = data.pool_data.clone().len();
+    let x_coordinates = itertools_num::linspace(0.0, length as f64, length).collect::<Vec<f64>>();
+
+    curves.push(Curve {
+        x_coordinates: x_coordinates.clone(),
+        y_coordinates: reserve_x.clone(),
+        design: CurveDesign {
+            color: Color::Green,
+            color_slot: 1,
+            style: Style::Lines(LineEmphasis::Light),
+        },
+        name: Some(format!("{}", "Rx")),
+    });
+
+    curves.push(Curve {
+        x_coordinates: x_coordinates.clone(),
+        y_coordinates: reserve_y.clone(),
+        design: CurveDesign {
+            color: Color::Blue,
+            color_slot: 1,
+            style: Style::Lines(LineEmphasis::Light),
+        },
+        name: Some(format!("{}", "Ry")),
+    });
+
+    if let Some(last_point) = x_coordinates.last() {
+        let min_y = curves[0]
+            .y_coordinates
+            .iter()
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+        let max_y = curves[0]
+            .y_coordinates
+            .iter()
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+
+        println!("min_y: {}", min_y);
+        println!("max_y: {}", max_y);
+
+        let axes = Axes {
+            x_label: String::from("X"),
+            y_label: String::from("Y"), // todo: add better y label
+            bounds: (vec![x_coordinates[0], *last_point], vec![*min_y, *max_y]),
+        };
+
+        // Plot it.
+        transparent_plot(
+            Some(curves),
+            None,
+            axes,
+            title,
+            display,
+            Some("reserves.html".to_string()),
+        );
+    } else {
+        println!("x coords are empty");
+    }
+}
+
+pub fn plot_prices(display: Display, data: &SimData) {
+    let title: String = String::from("Prices");
+
+    let mut curves: Vec<Curve> = Vec::new();
+
+    let portfolio_prices = data
+        .portfolio_prices
+        .clone()
+        .into_iter()
+        .map(wad_to_float)
+        .collect::<Vec<f64>>();
+
+    let reference_prices = data
+        .reference_prices
+        .clone()
+        .into_iter()
+        .map(wad_to_float)
+        .collect::<Vec<f64>>();
+    let length = data.portfolio_prices.clone().len();
+    let x_coordinates = itertools_num::linspace(0.0, length as f64, length).collect::<Vec<f64>>();
+
+    curves.push(Curve {
+        x_coordinates: x_coordinates.clone(),
+        y_coordinates: portfolio_prices.clone(),
+        design: CurveDesign {
+            color: Color::Green,
+            color_slot: 1,
+            style: Style::Lines(LineEmphasis::Light),
+        },
+        name: Some(format!("{}", "Spot")),
+    });
+
+    curves.push(Curve {
+        x_coordinates: x_coordinates.clone(),
+        y_coordinates: reference_prices.clone(),
+        design: CurveDesign {
+            color: Color::Blue,
+            color_slot: 1,
+            style: Style::Lines(LineEmphasis::Light),
+        },
+        name: Some(format!("{}", "Ref")),
+    });
+
+    if let Some(last_point) = x_coordinates.last() {
+        let min_y = curves
+            .iter()
+            .flat_map(|curve| &curve.y_coordinates)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap(); // assumes no NANs
+        let max_y = curves
+            .iter()
+            .flat_map(|curve| &curve.y_coordinates)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap(); // assumes no NANs
+
+        println!("min_y: {}", min_y);
+        println!("max_y: {}", max_y);
+
+        let axes = Axes {
+            x_label: String::from("X"),
+            y_label: String::from("Y"), // todo: add better y label
+            bounds: (vec![x_coordinates[0], *last_point], vec![*min_y, *max_y]),
+        };
+
+        // Plot it.
+        transparent_plot(
+            Some(curves),
+            None,
+            axes,
+            title,
+            display,
+            Some("prices.html".to_string()),
+        );
+    } else {
+        println!("x coords are empty");
+    }
+}
+
+pub fn plot_vs_price(
+    display: Display,
+    plot_name: String,
+    x_coordinates: Vec<f64>,
+    y_coordinates: Vec<Vec<f64>>,
+) {
+    let title: String = plot_name;
+
+    let lines = y_coordinates.len();
+    // for each line, a vec of f64 in the y_coords arg, make a curve and push to curves
+    let mut curves = Vec::new();
+    for i in 0..lines {
+        // get a random color given i
+        let color = match i {
+            0 => Color::Blue,
+            1 => Color::Green,
+            2 => Color::White,
+            3 => Color::Black,
+            4 => Color::Purple,
+            _ => Color::Green,
+        };
+
+        // get a random color slot given i
+        let color_slot = i % 8;
+
+        let curve = Curve {
+            x_coordinates: x_coordinates.clone(),
+            y_coordinates: y_coordinates[i].clone(),
+            design: CurveDesign {
+                color: color,
+                color_slot: color_slot,
+                style: Style::Lines(LineEmphasis::Light),
+            },
+            name: Some(format!("{} {}", "\\tau=", 1.0)),
+        };
+        curves.push(curve);
+    }
+
+    /* let curve = Curve {
+        x_coordinates: x_coordinates.clone(),
+        y_coordinates: y_coordinates.clone(),
+        design: CurveDesign {
+            color: Color::Green,
+            color_slot: 1,
+            style: Style::Lines(LineEmphasis::Light),
+        },
+        name: Some(format!("{} {}", "\\tau=", 1.0)),
+    };
+
+    // Capable of graphing multiple liquidity distributions, edit this code to do so.
+    let curves = vec![curve]; */
+
+    // Build the plot's axes
+    if let Some(last_point) = x_coordinates.last() {
+        let min_y = curves[0]
+            .y_coordinates
+            .iter()
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+        let max_y = curves[0]
+            .y_coordinates
+            .iter()
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+
+        println!("min_y: {}", min_y);
+        println!("max_y: {}", max_y);
+
+        let axes = Axes {
+            x_label: String::from("X"),
+            y_label: String::from("Y"), // todo: add better y label
+            bounds: (vec![x_coordinates[0], *last_point], vec![0.4, 1.2]),
+        };
+
+        // Plot it.
+        transparent_plot(Some(curves), None, axes, title, display, None);
+    } else {
+        println!("prices is empty");
+    }
 }

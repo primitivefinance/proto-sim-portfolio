@@ -67,8 +67,6 @@ contract Arbitrageur {
         if (yInput > 0) {
             return _getOrder(portfolio, poolId, false, yInput, pool.liquidity);
         }
-
-        require(false, "Failed to get arbitrage order");
     }
 
     function _getOrder(
