@@ -117,6 +117,30 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         )
         .unwrap();
 
+    let admin_mint_0 = admin
+        .call(
+            &token0_contract,
+            "mint",
+            (
+                recast_address(B160::from_low_u64_be(common::ARBITRAGEUR_ADDRESS_BASE)),
+                float_to_wad(4809.0),
+            )
+                .into_tokens(),
+        )
+        .unwrap();
+
+    let admin_mint_1 = admin
+        .call(
+            &token1_contract,
+            "mint",
+            (
+                recast_address(B160::from_low_u64_be(common::ARBITRAGEUR_ADDRESS_BASE)),
+                float_to_wad(4809.0),
+            )
+                .into_tokens(),
+        )
+        .unwrap();
+
     manager
         .deployed_contracts
         .insert("weth".to_string(), weth_contract);
@@ -164,7 +188,7 @@ fn setup_agent(manager: &mut manager::SimulationManager) {
     manager
         .activate_agent(
             AgentType::SimpleArbitrageur(agent),
-            B160::from_low_u64_be(2),
+            B160::from_low_u64_be(common::ARBITRAGEUR_ADDRESS_BASE),
         )
         .unwrap();
 }

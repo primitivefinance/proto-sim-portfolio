@@ -9,7 +9,7 @@ use arbiter::{
 use ethers::abi::{Tokenizable, Tokenize};
 
 // dynamic, generated with compile.sh
-use bindings::shared_types::Order;
+use bindings::{i_portfolio_actions::SwapReturn, shared_types::Order};
 
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
@@ -39,11 +39,11 @@ pub fn run(
                 .call(portfolio, "swap", vec![swap_order.into_token()])
                 .unwrap();
 
+            let swap_result: SwapReturn =
+                portfolio.decode_output("swap", unpack_execution(swap_call_result.clone())?)?;
+
             match swap_call_result.is_success() {
-                true => println!(
-                    "Swap call success: {:#?}",
-                    portfolio.decode_output("swap", unpack_execution(swap_call_result)?)?
-                ),
+                true => println!("Swap call success: {:#?}", swap_result),
                 false => println!("Swap call failed: {:#?}", swap_call_result),
             }
         }

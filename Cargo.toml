@@ -15,3 +15,6 @@ hex = { version = "0.4.3", default-features = false }
 revm = "3.3.0"
 ruint = "1.8.0"
 ethers = { version = "2.0.4", default-features = false, features = ["abigen"] }
+polars = "0.29.0"
+serde = { version = "1.0.163", features= ["derive"]}
+clap = { version = "4.3.0", features = ["derive"] }

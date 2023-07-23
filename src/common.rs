@@ -1,1 +1,2 @@
 pub static WAD: f64 = 1_000_000_000_000_000_000.0;
+pub static ARBITRAGEUR_ADDRESS_BASE: u64 = 2_u64;

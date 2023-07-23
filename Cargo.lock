@@ -3453,11 +3453,14 @@ dependencies = [
  "arbiter",
  "bindings",
  "bytes",
+ "clap",
  "ethers",
  "hex",
  "m3-rs",
+ "polars",
  "revm",
  "ruint",
+ "serde",
  "tokio",
 ]
 

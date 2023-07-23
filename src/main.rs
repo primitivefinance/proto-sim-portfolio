@@ -4,8 +4,9 @@ use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
 use arbiter::{
     agent::{Agent, AgentType},
     manager::SimulationManager,
-    utils::unpack_execution,
+    utils::{recast_address, unpack_execution},
 };
+use ethers::abi::Tokenize;
 use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
 use revm::primitives::U256;
 
@@ -30,15 +31,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool_data: Vec::new(),
         actor_balances: Vec::new(),
         reference_prices: Vec::new(),
+        portfolio_prices: Vec::new(),
     };
 
-    log::run(&mut manager, &mut sim_data)?;
-    let weth = manager.deployed_contracts.get("weth");
-    let portfolio = manager.deployed_contracts.get("portfolio");
-    let exchange = manager.deployed_contracts.get("exchange");
-    let token0 = manager.deployed_contracts.get("token0");
-    let token1 = manager.deployed_contracts.get("token1");
-    let actor = manager.deployed_contracts.get("actor");
+    let weth = manager.deployed_contracts.get("weth").unwrap();
+    let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
+    let exchange = manager.deployed_contracts.get("exchange").unwrap();
+    let token0 = manager.deployed_contracts.get("token0").unwrap();
+    let token1 = manager.deployed_contracts.get("token1").unwrap();
+    let actor = manager.deployed_contracts.get("actor").unwrap();
 
     // Base model is struct for informational data, set objective for parameters and determining a
     // model, objective trait has methods like get_reported_price
@@ -52,16 +53,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Generate price process
     let ou = OU::new(1.0, 10.0, 1.0);
-    let price_path = PriceProcess::new(
+    let price_process = PriceProcess::new(
         PriceProcessType::OU(ou),
         0.01,
         "trade".to_string(),
         10, // temp: 500,
         1.0,
         1,
-    )
-    .generate_price_path()
-    .1;
+    );
+
+    let prices = price_process.generate_price_path().1;
 
     // Simulation loop
 
@@ -72,7 +73,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Initialize the arbitrageur's start prices.
-    setup::init_arbitrageur(arbitrageur, price_path.clone()).await;
+    setup::init_arbitrageur(arbitrageur, prices.clone()).await;
+
+    let arbitrageur_approve_0 = arbitrageur
+        .call(
+            &token0,
+            "approve",
+            (
+                recast_address(portfolio.address),
+                ethers::prelude::U256::MAX,
+            )
+                .into_tokens(),
+        )
+        .unwrap();
+
+    let arbitrageur_approve_1 = arbitrageur
+        .call(
+            &token1,
+            "approve",
+            (
+                recast_address(portfolio.address),
+                ethers::prelude::U256::MAX,
+            )
+                .into_tokens(),
+        )
+        .unwrap();
 
     // Initialize the pool.
     let pool_id = setup::init_pool(&manager)?;
@@ -81,12 +106,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     setup::allocate_liquidity(&manager, pool_id)?;
 
     // Run the first price update. This is important, as it triggers the arb detection.
-    step::run(&manager, price_path[0])?;
+    step::run(&manager, prices[0])?;
+
+    // Logs initial simulation state.
+    log::run(&manager, &mut sim_data, pool_id)?;
 
     // note: arbitrageur borrows manager so it can't be used in the loop...
     let mut index: usize = 1;
     while let Ok((next_tx, _sell_asset)) = arbitrageur.detect_price_change().await {
-        if index >= price_path.len() {
+        if index >= prices.len() {
             // end sim
             println!("Ending sim loop at index: {}", index);
             break;
@@ -94,16 +122,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!(
             "====== Sim step: {}, price: {} =========",
-            index, price_path[index]
+            index, prices[index]
         );
 
-        let price_f64 = price_path[index];
+        let price_f64 = prices[index];
 
         // Run's the arbitrageur's task given the next desired tx.
         task::run(&manager, price_f64, next_tx, pool_id)?;
 
         // Logs the simulation data.
-        log::run(&manager, &mut sim_data)?;
+        log::run(&manager, &mut sim_data, pool_id)?;
 
         // Increments the simulation forward.
         step::run(&manager, price_f64)?;
@@ -114,6 +142,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Simulation finish and log
     manager.shutdown();
+
+    // Write the sim data to a file.
+    log::write_to_file(price_process, &mut sim_data);
 
     println!("Simulation finished.");
 
