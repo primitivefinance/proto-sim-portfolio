@@ -19,6 +19,9 @@ use visualize::{design::*, plot::*};
 // dynamic... generated with build.sh
 use bindings::i_portfolio_getters::*;
 
+pub static OUTPUT_DIRECTORY: &str = "out_data";
+pub static OUTPUT_FILE_NAME: &str = "results";
+
 /// Struct for storing simulation data
 pub struct SimData {
     pub pool_data: Vec<PoolsReturn>,
@@ -123,8 +126,8 @@ pub fn write_to_file(
     data: &mut SimData,
 ) -> Result<(), Box<dyn Error>> {
     let output = OutputStorage {
-        output_path: String::from("output"),
-        output_file_names: String::from("portfolio"),
+        output_path: String::from(OUTPUT_DIRECTORY),
+        output_file_names: String::from(OUTPUT_FILE_NAME),
     };
 
     let series_length = data.pool_data.len();
@@ -315,7 +318,7 @@ pub fn plot_reserves(display: Display, data: &SimData) {
             axes,
             title,
             display,
-            Some("reserves.html".to_string()),
+            Some(format!("{}/reserves.html", OUTPUT_DIRECTORY.to_string())),
         );
     } else {
         println!("x coords are empty");
@@ -393,90 +396,9 @@ pub fn plot_prices(display: Display, data: &SimData) {
             axes,
             title,
             display,
-            Some("prices.html".to_string()),
+            Some(format!("{}/prices.html", OUTPUT_DIRECTORY.to_string())),
         );
     } else {
         println!("x coords are empty");
-    }
-}
-
-pub fn plot_vs_price(
-    display: Display,
-    plot_name: String,
-    x_coordinates: Vec<f64>,
-    y_coordinates: Vec<Vec<f64>>,
-) {
-    let title: String = plot_name;
-
-    let lines = y_coordinates.len();
-    // for each line, a vec of f64 in the y_coords arg, make a curve and push to curves
-    let mut curves = Vec::new();
-    for i in 0..lines {
-        // get a random color given i
-        let color = match i {
-            0 => Color::Blue,
-            1 => Color::Green,
-            2 => Color::White,
-            3 => Color::Black,
-            4 => Color::Purple,
-            _ => Color::Green,
-        };
-
-        // get a random color slot given i
-        let color_slot = i % 8;
-
-        let curve = Curve {
-            x_coordinates: x_coordinates.clone(),
-            y_coordinates: y_coordinates[i].clone(),
-            design: CurveDesign {
-                color: color,
-                color_slot: color_slot,
-                style: Style::Lines(LineEmphasis::Light),
-            },
-            name: Some(format!("{} {}", "\\tau=", 1.0)),
-        };
-        curves.push(curve);
-    }
-
-    /* let curve = Curve {
-        x_coordinates: x_coordinates.clone(),
-        y_coordinates: y_coordinates.clone(),
-        design: CurveDesign {
-            color: Color::Green,
-            color_slot: 1,
-            style: Style::Lines(LineEmphasis::Light),
-        },
-        name: Some(format!("{} {}", "\\tau=", 1.0)),
-    };
-
-    // Capable of graphing multiple liquidity distributions, edit this code to do so.
-    let curves = vec![curve]; */
-
-    // Build the plot's axes
-    if let Some(last_point) = x_coordinates.last() {
-        let min_y = curves[0]
-            .y_coordinates
-            .iter()
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap();
-        let max_y = curves[0]
-            .y_coordinates
-            .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap();
-
-        println!("min_y: {}", min_y);
-        println!("max_y: {}", max_y);
-
-        let axes = Axes {
-            x_label: String::from("X"),
-            y_label: String::from("Y"), // todo: add better y label
-            bounds: (vec![x_coordinates[0], *last_point], vec![0.4, 1.2]),
-        };
-
-        // Plot it.
-        transparent_plot(Some(curves), None, axes, title, display, None);
-    } else {
-        println!("prices is empty");
     }
 }
