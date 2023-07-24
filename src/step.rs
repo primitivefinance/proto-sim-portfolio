@@ -1,7 +1,7 @@
 use arbiter::{
     agent::Agent,
     manager::SimulationManager,
-    utils::{float_to_wad, recast_address, unpack_execution},
+    utils::{float_to_wad, recast_address},
 };
 use ethers::abi::Tokenize;
 

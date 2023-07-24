@@ -101,7 +101,7 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
     let actor_address_bytes = B160::from(actor_address.as_fixed_bytes());
     let actor_contract = SimulationContract::bind(actor::ACTOR_ABI.clone(), actor_address_bytes);
 
-    let admin_approve_0 = admin
+    admin
         .call(
             &token0_contract,
             "approve",
@@ -109,7 +109,7 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         )
         .unwrap();
 
-    let admin_approve_1 = admin
+    admin
         .call(
             &token1_contract,
             "approve",
@@ -117,7 +117,7 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         )
         .unwrap();
 
-    let admin_mint_0 = admin
+    admin
         .call(
             &token0_contract,
             "mint",
@@ -129,7 +129,7 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         )
         .unwrap();
 
-    let admin_mint_1 = admin
+    admin
         .call(
             &token1_contract,
             "mint",

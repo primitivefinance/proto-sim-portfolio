@@ -1,8 +1,5 @@
 use arbiter::{
-    agent::{
-        simple_arbitrageur::{NextTx, SwapDirection},
-        Agent,
-    },
+    agent::{simple_arbitrageur::NextTx, Agent},
     manager::SimulationManager,
     utils::{float_to_wad, recast_address, unpack_execution},
 };

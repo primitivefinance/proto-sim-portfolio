@@ -1,15 +1,10 @@
-use arbiter::agent::simple_arbitrageur::SimpleArbitrageur;
-use arbiter::agent::IsActive;
 use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
 use arbiter::{
     agent::{Agent, AgentType},
     manager::SimulationManager,
-    utils::{recast_address, unpack_execution, wad_to_float},
+    utils::recast_address,
 };
 use ethers::abi::Tokenize;
-use itertools_num::linspace;
-use m3_rs::models::{base_model::BaseModel, rmm_01::RMM01};
-use revm::primitives::U256;
 use visualize::{design::*, plot::*};
 
 // dynamic imports... generate with build.sh
@@ -74,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the arbitrageur's start prices.
     setup::init_arbitrageur(arbitrageur, prices.clone()).await;
 
-    let arbitrageur_approve_0 = arbitrageur
+    arbitrageur
         .call(
             &token0,
             "approve",
@@ -86,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .unwrap();
 
-    let arbitrageur_approve_1 = arbitrageur
+    arbitrageur
         .call(
             &token1,
             "approve",
