@@ -29,7 +29,6 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         portfolio::PORTFOLIO_ABI.clone(),
         portfolio::PORTFOLIO_BYTECODE.clone(),
     );
-    println!("err here");
     let (portfolio_contract, _result) = admin.deploy(
         portfolio,
         (
@@ -39,15 +38,12 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         )
             .into_tokens(),
     )?;
-    println!("portfolio contract: {:?}", portfolio_contract);
-    println!("result: {:?}", _result);
 
     // Deploy Entrypoint
     let entrypoint = SimulationContract::new(
         entrypoint::ENTRYPOINT_ABI.clone(),
         entrypoint::ENTRYPOINT_BYTECODE.clone(),
     );
-    println!("entrypoint");
     let (entrypoint_contract, _result) = admin.deploy(
         entrypoint,
         (
