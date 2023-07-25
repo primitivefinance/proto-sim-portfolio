@@ -105,33 +105,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Logs initial simulation state.
     log::run(&manager, &mut sim_data, pool_id)?;
 
-    // note: arbitrageur borrows manager so it can't be used in the loop...
-    let mut index: usize = 1;
-    while let Ok((next_tx, _sell_asset)) = arbitrageur.detect_price_change().await {
-        if index >= prices.len() {
-            // end sim
-            println!("Ending sim loop at index: {}", index);
-            break;
-        }
-
-        println!(
-            "====== Sim step: {}, price: {} =========",
-            index, prices[index]
-        );
-
-        let price_f64 = prices[index];
+    for (i, price) in prices.iter().skip(1).enumerate() {
+        println!("====== Sim step: {}, price: {} =========", i, price);
 
         // Run's the arbitrageur's task given the next desired tx.
-        task::run(&manager, price_f64, next_tx, pool_id)?;
+        task::run(&manager, *price, pool_id)?;
 
         // Logs the simulation data.
         log::run(&manager, &mut sim_data, pool_id)?;
 
         // Increments the simulation forward.
-        step::run(&manager, price_f64)?;
-
-        // Increments the simulation loop.
-        index += 1;
+        step::run(&manager, *price)?;
     }
 
     // Simulation finish and log
