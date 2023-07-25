@@ -1,61 +1,41 @@
 use arbiter::{
-    agent::{simple_arbitrageur::NextTx, Agent},
+    agent::Agent,
     manager::SimulationManager,
     utils::{float_to_wad, recast_address, unpack_execution},
 };
 use ethers::abi::{Tokenizable, Tokenize};
+use std::error::Error;
 
 // dynamic, generated with compile.sh
 use bindings::{i_portfolio_actions::SwapReturn, shared_types::Order};
 
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
-pub fn run(
-    manager: &SimulationManager,
-    price: f64,
-    next_tx: NextTx,
-    pool_id: u64,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), Box<dyn Error>> {
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-
-    // todo: we should be aware of the liquidity distribution at this price...
-    // right now we get 0 arb amounts so we fail to get a swap order
     let price_wad = float_to_wad(price);
-    match next_tx {
-        NextTx::Swap => {
-            // do the arbitrage
-            println!("Executing task.");
-            let swap_order = get_swap_order(manager, pool_id, price_wad)?;
-            println!("Swap order: {:#?}", swap_order);
 
-            if swap_order.input == 0 {
-                println!("No swap order required.");
-                return Ok(());
-            }
+    let swap_order = get_swap_order(manager, pool_id, price_wad)?;
+    println!("Swap order: {:#?}", swap_order);
 
-            let swap_call_result = manager
-                .agents
-                .get("arbitrageur")
-                .unwrap()
-                .call(portfolio, "swap", vec![swap_order.into_token()])
-                .unwrap();
+    if swap_order.input == 0 {
+        println!("No swap order required.");
+        return Ok(());
+    }
 
-            let swap_result: SwapReturn =
-                portfolio.decode_output("swap", unpack_execution(swap_call_result.clone())?)?;
+    let swap_call_result = manager
+        .agents
+        .get("arbitrageur")
+        .unwrap()
+        .call(portfolio, "swap", vec![swap_order.into_token()])
+        .unwrap();
 
-            match swap_call_result.is_success() {
-                true => println!("Swap call success: {:#?}", swap_result),
-                false => println!("Swap call failed: {:#?}", swap_call_result),
-            }
-        }
-        NextTx::UpdatePrice => {
-            // do nothing... this case should be removed
-            println!("Updating price case");
-        }
-        NextTx::None => {
-            // do nothing regularly...
-            println!("No watched events triggered.");
-        }
+    let swap_result: SwapReturn =
+        portfolio.decode_output("swap", unpack_execution(swap_call_result.clone())?)?;
+
+    match swap_call_result.is_success() {
+        true => println!("Swap call success: {:#?}", swap_result),
+        false => println!("Swap call failed: {:#?}", swap_call_result),
     }
 
     Ok(())

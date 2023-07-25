@@ -21,7 +21,7 @@ interface NormalStrategyLike {
         uint256 priceWad
     )
         external
-        view
+    view
         returns (bytes memory strategyData, uint256 initialX, uint256 initialY);
 }
 
