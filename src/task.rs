@@ -13,6 +13,8 @@ use bindings::{
     shared_types::{Order, PortfolioConfig},
 };
 
+use crate::math::NormalCurve;
+
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
 pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), Box<dyn Error>> {
@@ -144,4 +146,7 @@ pub fn bisection(manager: &SimulationManager, price: f64, pool_id: u64) {
     println!("config: {:#?}", config_return);
 
     println!("pool: {:#?}", pool);
+    
+    let _rust_curve = NormalCurve::new_from_portfolio(&pool, &config_return);
+
 }

@@ -158,10 +158,10 @@ fn trading_curve_analysis(manager: &SimulationManager) {
     };
 
     let sol_y = log::approximate_y_given_x(admin, library, curve.clone()).unwrap();
-    let rust_coordinates = math::get_trading_function_coordinates(curve.clone());
+    let rust_coordinates = curve.get_trading_function_coordinates();
 
     let mut sol_coordinates = Vec::new();
-    let mut curve_copy = curve.clone();
+    let mut curve_copy = curve;
 
     let mut x = 0.0;
     let mut y = 0.0;
