@@ -1,4 +1,4 @@
 
-forge bind --crate-name bindings --overwrite --force --revert-strings debug
+forge bind --crate-name bindings --overwrite --force --optimize
 
 echo "Completed compile shell script"

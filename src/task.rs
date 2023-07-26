@@ -7,7 +7,11 @@ use ethers::abi::{Tokenizable, Tokenize};
 use std::error::Error;
 
 // dynamic, generated with compile.sh
-use bindings::{i_portfolio_actions::SwapReturn, portfolio::PoolsReturn, shared_types::Order};
+use bindings::{
+    i_portfolio_actions::SwapReturn,
+    portfolio::PoolsReturn,
+    shared_types::{Order, PortfolioConfig},
+};
 
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
@@ -117,7 +121,6 @@ fn get_swap_order(
 #[warn(unused_variables, dead_code)]
 pub fn bisection(manager: &SimulationManager, price: f64, pool_id: u64) {
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-    let strategy = manager.deployed_contracts.get("strategy").unwrap();
     let actor = manager.deployed_contracts.get("actor").unwrap();
     let arbitrageur = manager.agents.get("arbitrageur").unwrap();
     let price_wad = float_to_wad(price);
@@ -128,6 +131,17 @@ pub fn bisection(manager: &SimulationManager, price: f64, pool_id: u64) {
     let pool: PoolsReturn = portfolio
         .decode_output("pools", unpack_execution(pool_data).unwrap())
         .unwrap();
+
+    let config = arbitrageur.call(
+        actor,
+        "getConfig",
+        (recast_address(portfolio.address), pool_id).into_tokens(),
+    );
+    let config_return: PortfolioConfig = actor
+        .decode_output("getConfig", unpack_execution(config.unwrap()).unwrap())
+        .unwrap();
+
+    println!("config: {:#?}", config_return);
 
     println!("pool: {:#?}", pool);
 }

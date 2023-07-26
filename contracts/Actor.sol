@@ -69,6 +69,15 @@ contract Arbitrageur {
         }
     }
 
+    function getConfig(address portfolio, uint64 poolId)
+        public
+        view
+        returns (PortfolioConfig memory config)
+    {
+        IStrategy strategy = IStrategy(IPortfolio(portfolio).DEFAULT_STRATEGY()); // todo: fix with latest portfolio version
+        config = NormalStrategyLike(address(strategy)).configs(poolId);
+    }
+
     function _getOrder(
         address portfolio,
         uint64 poolId,
