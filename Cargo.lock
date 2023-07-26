@@ -3489,6 +3489,7 @@ dependencies = [
  "revm",
  "ruint",
  "serde",
+ "statrs",
  "tokio",
  "visualize 0.2.1 (git+https://github.com/primitivefinance/visualization-rs.git?branch=alex/copy-traits)",
 ]

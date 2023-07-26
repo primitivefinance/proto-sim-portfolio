@@ -20,3 +20,4 @@ serde = { version = "1.0.163", features= ["derive"]}
 clap = { version = "4.3.0", features = ["derive"] }
 visualize = {git = "https://github.com/primitivefinance/visualization-rs.git", branch = "alex/copy-traits"}
 itertools-num = "0.1.3"
+statrs = "0.16.0"
