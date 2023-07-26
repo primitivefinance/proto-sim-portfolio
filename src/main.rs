@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         PriceProcessType::OU(ou),
         0.01,
         "trade".to_string(),
-        500, // temp: 500,
+        1, // temp: 500,
         1.0,
         1,
     );
