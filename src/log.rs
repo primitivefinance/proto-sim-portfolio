@@ -16,8 +16,10 @@ use polars::prelude::*;
 use revm::primitives::Address;
 use visualize::{design::*, plot::*};
 
+use super::math;
+
 // dynamic... generated with build.sh
-use bindings::i_portfolio_getters::*;
+use bindings::{external_normal_strategy_lib, i_portfolio_getters::*};
 
 pub static OUTPUT_DIRECTORY: &str = "out_data";
 pub static OUTPUT_FILE_NAME: &str = "results";
@@ -69,6 +71,67 @@ pub fn run(
     sim_data.reference_prices.push(exchange_price);
 
     Ok(())
+}
+
+pub fn deploy_external_normal_strategy_lib(
+    manager: &mut SimulationManager,
+) -> Result<&SimulationContract<IsDeployed>, Box<dyn std::error::Error>> {
+    let admin = manager.agents.get("admin").unwrap();
+    let library = SimulationContract::new(
+        external_normal_strategy_lib::EXTERNALNORMALSTRATEGYLIB_ABI.clone(),
+        external_normal_strategy_lib::EXTERNALNORMALSTRATEGYLIB_BYTECODE.clone(),
+    );
+    let (library_contract, _) = admin.deploy(library, vec![])?;
+    manager
+        .deployed_contracts
+        .insert("library".to_string(), library_contract);
+
+    let library = manager.deployed_contracts.get("library").unwrap();
+    Ok(library)
+}
+
+pub fn approximate_y_given_x(
+    admin: &AgentType<IsActive>,
+    library: &SimulationContract<IsDeployed>,
+    curve: math::NormalCurve,
+) -> Result<ethers::types::U256, Box<dyn std::error::Error>> {
+    let arguments: external_normal_strategy_lib::NormalCurve =
+        external_normal_strategy_lib::NormalCurve {
+            reserve_x_per_wad: float_to_wad(curve.reserve_x_per_wad),
+            reserve_y_per_wad: float_to_wad(curve.reserve_y_per_wad),
+            strike_price_wad: float_to_wad(curve.strike_price_f),
+            standard_deviation_wad: float_to_wad(curve.std_dev_f),
+            time_remaining_seconds: (curve.time_remaining_sec as u32).into(),
+            invariant: (0).into(),
+        };
+    let result = admin.call(
+        library,
+        "approximateYGivenX",
+        external_normal_strategy_lib::ApproximateYGivenXCall { self_: arguments }.into_tokens(),
+    )?;
+    let decoded: ethers::types::U256 =
+        library.decode_output("approximateYGivenX", unpack_execution(result)?)?;
+    Ok(decoded)
+}
+
+pub fn trading_function(
+    admin: &AgentType<IsActive>,
+    library: &SimulationContract<IsDeployed>,
+    curve: math::NormalCurve,
+) -> Result<ethers::types::I256, Box<dyn std::error::Error>> {
+    let arguments: external_normal_strategy_lib::NormalCurve =
+        external_normal_strategy_lib::NormalCurve {
+            reserve_x_per_wad: float_to_wad(curve.reserve_x_per_wad).into(),
+            reserve_y_per_wad: float_to_wad(curve.reserve_y_per_wad).into(),
+            strike_price_wad: float_to_wad(curve.strike_price_f).into(),
+            standard_deviation_wad: float_to_wad(curve.std_dev_f).into(),
+            time_remaining_seconds: (curve.time_remaining_sec as u32).into(),
+            invariant: (0).into(),
+        };
+    let result = admin.call(library, "tradingFunction", arguments.into_tokens())?;
+    let decoded: ethers::types::I256 =
+        library.decode_output("tradingFunction", unpack_execution(result)?)?;
+    Ok(decoded)
 }
 
 /// Calls portfolio.pools
@@ -397,6 +460,48 @@ pub fn plot_prices(display: Display, data: &SimData) {
             title,
             display,
             Some(format!("{}/prices.html", OUTPUT_DIRECTORY.to_string())),
+        );
+    } else {
+        println!("x coords are empty");
+    }
+}
+
+pub fn plot_trading_curve(display: Display, curves: Vec<Curve>) {
+    // plot the trading curve coordinates using transparent_plot
+    let title: String = String::from("Trading Curve");
+
+    if let Some(last_point) = curves[0].x_coordinates.clone().last() {
+        let min_y = curves
+            .iter()
+            .flat_map(|curve| &curve.y_coordinates)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap(); // assumes no NANs
+        let max_y = curves
+            .iter()
+            .flat_map(|curve| &curve.y_coordinates)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap(); // assumes no NANs
+
+        println!("min_y: {}", min_y);
+        println!("max_y: {}", max_y);
+
+        let axes = Axes {
+            x_label: String::from("X"),
+            y_label: String::from("Y"), // todo: add better y label
+            bounds: (vec![0.0, last_point.clone()], vec![*min_y, *max_y]),
+        };
+
+        // Plot it.
+        transparent_plot(
+            Some(curves),
+            None,
+            axes,
+            title,
+            display,
+            Some(format!(
+                "{}/trading_curve.html",
+                OUTPUT_DIRECTORY.to_string()
+            )),
         );
     } else {
         println!("x coords are empty");

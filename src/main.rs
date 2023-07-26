@@ -1,16 +1,19 @@
 use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
+use arbiter::utils::wad_to_float;
 use arbiter::{
     agent::{Agent, AgentType},
     manager::SimulationManager,
     utils::recast_address,
 };
 use ethers::abi::Tokenize;
+use log::plot_trading_curve;
 use visualize::{design::*, plot::*};
 
 // dynamic imports... generate with build.sh
 
 mod common;
 mod log;
+mod math;
 mod setup;
 mod step;
 mod task;
@@ -118,9 +121,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         step::run(&manager, *price)?;
     }
 
-    // Simulation finish and log
-    manager.shutdown();
-
     // Write the sim data to a file.
     log::write_to_file(price_process, &mut sim_data)?;
 
@@ -133,7 +133,113 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::plot_reserves(display.clone(), &sim_data);
     log::plot_prices(display.clone(), &sim_data);
 
+    // uncomment to plot the trading curve error
+    //let library = log::deploy_external_normal_strategy_lib(&mut manager).unwrap();
+    //trading_curve_analysis(&manager);
+
+    // Simulation finish and log
+    manager.shutdown();
     println!("Simulation finished.");
 
     Ok(())
+}
+
+fn trading_curve_analysis(manager: &SimulationManager) {
+    let library = manager.deployed_contracts.get("library").unwrap();
+    let admin = manager.agents.get("admin").unwrap();
+
+    let mut curve: math::NormalCurve = math::NormalCurve {
+        reserve_x_per_wad: 0.308537538726,
+        reserve_y_per_wad: 0.308537538726,
+        strike_price_f: 1.0,
+        std_dev_f: 1.0,
+        time_remaining_sec: 31556953.0,
+        invariant_f: 0.0,
+    };
+
+    let sol_y = log::approximate_y_given_x(admin, library, curve.clone()).unwrap();
+    let rust_coordinates = math::get_trading_function_coordinates(curve.clone());
+
+    let mut sol_coordinates = Vec::new();
+    let mut curve_copy = curve.clone();
+
+    let mut x = 0.0;
+    let mut y = 0.0;
+    while x < 1.0 {
+        curve_copy.reserve_x_per_wad = x;
+        let y_wad = log::approximate_y_given_x(admin, library, curve_copy.clone()).unwrap();
+        y = wad_to_float(y_wad);
+        sol_coordinates.push((x, y));
+        x += 0.01;
+    }
+
+    let mut curves: Vec<Curve> = Vec::new();
+
+    // difference between sol coords and rust coords
+    let y_coords_error = rust_coordinates
+        .clone()
+        .into_iter()
+        .zip(sol_coordinates.clone().into_iter())
+        .map(|(x, y)| (x.1 - y.1).abs())
+        .collect::<Vec<f64>>();
+
+    /*  curves.push(Curve {
+        x_coordinates: rust_coordinates
+            .clone()
+            .into_iter()
+            .map(|x| x.0)
+            .collect::<Vec<f64>>(),
+        y_coordinates: rust_coordinates
+            .clone()
+            .into_iter()
+            .map(|x| x.1)
+            .collect::<Vec<f64>>(),
+        design: CurveDesign {
+            color: Color::Green,
+            color_slot: 1,
+            style: Style::Lines(LineEmphasis::Light),
+        },
+        name: Some(format!("{}", ".rs")),
+    });
+
+    curves.push(Curve {
+        x_coordinates: sol_coordinates
+            .clone()
+            .into_iter()
+            .map(|x| x.0)
+            .collect::<Vec<f64>>(),
+        y_coordinates: sol_coordinates
+            .clone()
+            .into_iter()
+            .map(|x| x.1)
+            .collect::<Vec<f64>>(),
+        design: CurveDesign {
+            color: Color::Blue,
+            color_slot: 1,
+            style: Style::Lines(LineEmphasis::Light),
+        },
+        name: Some(format!("{}", ".sol")),
+    }); */
+
+    curves.push(Curve {
+        x_coordinates: rust_coordinates
+            .clone()
+            .into_iter()
+            .map(|x| x.0)
+            .collect::<Vec<f64>>(),
+        y_coordinates: y_coords_error.clone(),
+        design: CurveDesign {
+            color: Color::Purple,
+            color_slot: 1,
+            style: Style::Lines(LineEmphasis::Light),
+        },
+        name: Some(format!("{}", ".rs")),
+    });
+
+    let display = Display {
+        transparent: false,
+        mode: DisplayMode::Light,
+        show: false,
+    };
+    plot_trading_curve(display, curves);
 }
