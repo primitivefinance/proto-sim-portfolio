@@ -1,3 +1,5 @@
+use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
+
 /// Configuration for the simulation.
 /// Includes all the key parameters used to generate
 /// the price process, the agent parameters,
@@ -5,10 +7,36 @@
 
 /// # SimConfig
 /// Data structure to hold the parameters for the sim.
+#[derive(Clone, Debug)]
 pub struct SimConfig {
     pub process: Process,
     pub timeline: Timeline,
     pub economic: Economic,
+}
+
+pub trait GenerateProcess {
+    fn generate(&self) -> PriceProcess;
+}
+
+/// # GenerateProcess
+/// Trait for generating a price process using the sim config.
+impl GenerateProcess for SimConfig {
+    /// Generates an OU process using the configuration parameters.
+    fn generate(&self) -> PriceProcess {
+        let ou = OU::new(
+            self.process.volatility,
+            self.process.mean_reversion_speed,
+            self.process.mean_price,
+        );
+        PriceProcess::new(
+            PriceProcessType::OU(ou),
+            self.timeline.timestep,
+            "OU".to_string(),
+            self.timeline.num_steps,
+            self.economic.initial_price,
+            self.timeline.seed,
+        )
+    }
 }
 
 impl SimConfig {
@@ -84,6 +112,7 @@ impl Default for SimConfig {
 }
 
 /// Defines the arguments for use in generating the underlying price process.
+#[derive(Clone, Debug)]
 pub struct Process {
     volatility: f64,
     mean_reversion_speed: f64,
@@ -98,6 +127,7 @@ pub struct Process {
 /// * `seed` - Generates randomness in the price process. (u64)
 /// * `timestep` - Distance between points in time. (f64)
 /// * `num_steps` - Number of steps in the simulation. (usize)
+#[derive(Clone, Debug)]
 pub struct Timeline {
     seed: u64,
     timestep: f64,
@@ -114,6 +144,7 @@ pub struct Timeline {
 /// * `pool_strike_price_f` - Normal strategy pool's strike price parameter. (f64)
 /// * `pool_time_remaining_years_f` - Normal strategy pool's time remaining seconds parameter. Note: not supported yet. (f64)
 /// * `pool_is_perpetual` - Normal strategy pool's is perpetual parameter. Sets tau to be constant. (bool)
+#[derive(Clone, Debug)]
 pub struct Economic {
     initial_price: f64,
     pool_volatility_f: f64,

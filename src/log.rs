@@ -16,35 +16,28 @@ use polars::prelude::*;
 use revm::primitives::Address;
 use visualize::{design::*, plot::*};
 
-use super::math;
+use crate::raw_data::RawData;
+
+use super::{math, raw_data};
 
 // dynamic... generated with build.sh
-use bindings::{external_normal_strategy_lib, i_portfolio_getters::*};
+use bindings::{external_normal_strategy_lib, i_portfolio::*};
 
 pub static OUTPUT_DIRECTORY: &str = "out_data";
 pub static OUTPUT_FILE_NAME: &str = "results";
 
-/// Struct for storing simulation data
-pub struct SimData {
-    pub pool_data: Vec<PoolsReturn>,
-    pub arbitrageur_balances: Vec<HashMap<u64, U256>>, // maps token index (0 or 1) => balance
-    pub reference_prices: Vec<U256>,
-    pub portfolio_prices: Vec<U256>,
-}
-
-// Path: src/log.rs
-//
-// @notice
-// Data collection is handled before a step in the simulation, so it starts at zero.
-//
-// @dev
-// Collected data:
-// 1. Pool data
-// 2. Actor token balances
-// 3. Reference market prices
+/// # Log::Run
+/// Fetches the raw simulation data and edits
+/// writes it to the raw_data container
+///
+/// # Data collected
+/// - Arbitrageur balances for each token
+/// - Portfolio pool data
+/// - Portfolio reported price
+/// - Exchange price
 pub fn run(
     manager: &SimulationManager,
-    sim_data: &mut SimData,
+    raw_data_container: &mut RawData,
     pool_id: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
@@ -52,42 +45,42 @@ pub fn run(
     let token0 = manager.deployed_contracts.get("token0").unwrap();
     let token1 = manager.deployed_contracts.get("token1").unwrap();
 
+    // Edit the arb balances
     let arbitrageur_balance_0 = get_balance(admin, token0, arbitrageur.address())?;
     let arbitrageur_balance_1 = get_balance(admin, token1, arbitrageur.address())?;
-    let mut arbitrageur_balance = HashMap::new();
-    arbitrageur_balance.insert(0, arbitrageur_balance_0);
-    arbitrageur_balance.insert(1, arbitrageur_balance_1);
-    sim_data.arbitrageur_balances.push(arbitrageur_balance);
+    raw_data_container
+        .arbitrageur_balances_wad
+        .entry("token0".to_string())
+        .or_insert(Vec::new())
+        .push(arbitrageur_balance_0);
 
+    raw_data_container
+        .arbitrageur_balances_wad
+        .entry("token1".to_string())
+        .or_insert(Vec::new())
+        .push(arbitrageur_balance_1);
+
+    // Edit portfolio pool data
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
     let pool_data = get_pool(admin, portfolio, pool_id)?;
-    sim_data.pool_data.push(pool_data);
+    raw_data_container
+        .pool_data
+        .entry(pool_id)
+        .or_insert(vec![PoolsReturn::default()])
+        .push(pool_data.clone());
 
+    // Edit portfolio reported price
     let portfolio_prices = get_portfolio_prices(admin, portfolio, pool_id)?;
-    sim_data.portfolio_prices.push(portfolio_prices);
+    raw_data_container
+        .reported_price_wad_sol
+        .push(portfolio_prices);
 
+    // Edit the exchange price
     let exchange = manager.deployed_contracts.get("exchange").unwrap();
     let exchange_price = get_reference_price(admin, exchange, token0.address)?;
-    sim_data.reference_prices.push(exchange_price);
+    raw_data_container.exchange_prices_wad.push(exchange_price);
 
     Ok(())
-}
-
-pub fn deploy_external_normal_strategy_lib(
-    manager: &mut SimulationManager,
-) -> Result<&SimulationContract<IsDeployed>, Box<dyn std::error::Error>> {
-    let admin = manager.agents.get("admin").unwrap();
-    let library = SimulationContract::new(
-        external_normal_strategy_lib::EXTERNALNORMALSTRATEGYLIB_ABI.clone(),
-        external_normal_strategy_lib::EXTERNALNORMALSTRATEGYLIB_BYTECODE.clone(),
-    );
-    let (library_contract, _) = admin.deploy(library, vec![])?;
-    manager
-        .deployed_contracts
-        .insert("library".to_string(), library_contract);
-
-    let library = manager.deployed_contracts.get("library").unwrap();
-    Ok(library)
 }
 
 pub fn approximate_y_given_x(
@@ -199,9 +192,9 @@ pub struct OutputStorage {
     pub output_file_names: String,
 }
 
-pub fn write_to_file(
+/* pub fn write_to_file(
     price_process: PriceProcess,
-    data: &mut SimData,
+    data: &mut RawData,
 ) -> Result<(), Box<dyn Error>> {
     let output = OutputStorage {
         output_path: String::from(OUTPUT_DIRECTORY),
@@ -253,9 +246,9 @@ pub fn write_to_file(
     };
 
     Ok(())
-}
+} */
 
-fn make_series(data: &mut SimData) -> Result<DataFrame, Box<dyn std::error::Error>> {
+/* fn make_series(data: &mut RawData) -> Result<DataFrame, Box<dyn std::error::Error>> {
     // converts data.reference_prices to a float in a vector
 
     let exchange_prices = data
@@ -321,7 +314,7 @@ fn make_series(data: &mut SimData) -> Result<DataFrame, Box<dyn std::error::Erro
     Ok(data)
 }
 
-pub fn plot_reserves(display: Display, data: &SimData) {
+pub fn plot_reserves(display: Display, data: &RawData) {
     let title: String = String::from("Reserves");
 
     let mut curves: Vec<Curve> = Vec::new();
@@ -403,7 +396,7 @@ pub fn plot_reserves(display: Display, data: &SimData) {
     }
 }
 
-pub fn plot_prices(display: Display, data: &SimData) {
+pub fn plot_prices(display: Display, data: &RawData) {
     let title: String = String::from("Prices");
 
     let mut curves: Vec<Curve> = Vec::new();
@@ -521,4 +514,4 @@ pub fn plot_trading_curve(display: Display, curves: Vec<Curve>) {
     } else {
         println!("x coords are empty");
     }
-}
+} */

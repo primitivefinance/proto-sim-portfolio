@@ -22,7 +22,7 @@ use bindings::i_portfolio::*;
 /// * `invariant_wad_sol` - A vector of invariant values, in wad format.
 /// * `portfolio_value_wad_sol` - Portfolio value function is the sum of the value of tokens, in wad format.
 pub struct RawData {
-    pub pool_data: HashMap<u64, PoolsReturn>,
+    pub pool_data: HashMap<u64, Vec<PoolsReturn>>,
     pub exchange_prices_wad: Vec<U256>,
     pub arbitrageur_balances_wad: HashMap<String, Vec<U256>>,
     pub reported_price_wad_sol: Vec<U256>,
@@ -160,10 +160,10 @@ mod tests {
         };
 
         // insert the pool data into the raw data storage
-        RAW_.pool_data.insert(0, pool_data);
+        RAW_.pool_data.insert(0, vec![pool_data]);
         // get x per lq
         let x_per_lq = vec![RAW_.pool_data.get(&0).unwrap().clone()];
-        let x_per_lq = x_per_lq.map_x_per_lq();
+        let x_per_lq = x_per_lq[0].map_x_per_lq();
         // convert to floats
         let x_per_lq_float = x_per_lq.wad_to_float();
         assert_eq!(x_per_lq_float, vec![1.0]);
