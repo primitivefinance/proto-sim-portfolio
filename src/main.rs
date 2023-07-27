@@ -135,8 +135,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::plot_prices(display.clone(), &sim_data);
 
     // uncomment to plot the trading curve error
-    //trading_curve_analysis(&manager);
     let library = log::deploy_external_normal_strategy_lib(&mut manager).unwrap();
+    trading_curve_analysis(&manager);
     //get_config(&mut manager, pool_id).unwrap();
 
     // Simulation finish and log
@@ -167,6 +167,9 @@ fn trading_curve_analysis(manager: &SimulationManager) {
         time_remaining_sec: 31556953.0,
         invariant_f: 0.0,
     };
+
+    let approx_amount_out = curve.approximate_amount_out(true, 0.1);
+    println!("approx_amount_out: {}", approx_amount_out);
 
     let sol_y = log::approximate_y_given_x(admin, library, curve.clone()).unwrap();
     let rust_coordinates = curve.get_trading_function_coordinates();
