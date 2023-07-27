@@ -9,7 +9,13 @@ pub struct Bisection {
 
 impl Bisection {
     /// Creates a new bisection object.
-    fn new(lower: f64, upper: f64, epsilon: f64, maxIterations: f64, fx: fn(f64) -> f64) -> Self {
+    pub fn new(
+        lower: f64,
+        upper: f64,
+        epsilon: f64,
+        maxIterations: f64,
+        fx: fn(f64) -> f64,
+    ) -> Self {
         Self {
             upper,
             lower,
@@ -20,7 +26,7 @@ impl Bisection {
     }
 
     /// Finds the root of the function `fx` between `lower` and `upper` with a maximum error of `epsilon`.
-    fn find(&self) -> f64 {
+    pub fn find(&self) -> f64 {
         let mut root = 0.0;
         let mut distance = self.upper - self.lower;
         let mut iterations = 0.0;

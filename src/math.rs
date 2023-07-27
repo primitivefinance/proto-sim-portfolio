@@ -1,7 +1,9 @@
+use arbiter::utils::wad_to_float;
 use bindings::{portfolio::PoolsReturn, shared_types::PortfolioConfig};
 /// Implements the portfolio "Normal Strategy" math functions in rust.
 use statrs::distribution::{ContinuousCDF, Normal};
-use arbiter::utils::wad_to_float;
+
+use super::bisection;
 
 pub static SECONDS_PER_YEAR: f64 = 31556953.0;
 
@@ -36,9 +38,11 @@ pub struct NormalCurve {
 ///          -> x = 1 - Φ(Φ⁻¹(y/K) + σ√τ - k)
 /// fixed point arithmetic?
 impl NormalCurve {
-
-    // constructor from portfolio pool
-    pub fn new_from_portfolio(pool_return: &PoolsReturn, portfolio_config: &PortfolioConfig ) -> Self {
+    /// constructor from portfolio pool
+    pub fn new_from_portfolio(
+        pool_return: &PoolsReturn,
+        portfolio_config: &PortfolioConfig,
+    ) -> Self {
         Self {
             reserve_x_per_wad: wad_to_float(pool_return.virtual_x.into()),
             reserve_y_per_wad: wad_to_float(pool_return.virtual_y.into()),
@@ -48,12 +52,13 @@ impl NormalCurve {
             invariant_f: 0.0,
         }
     }
-    // evaluate given input between [0,1]
+    /// evaluate given input between [0,1]
     pub fn trading_function_floating(&self) -> f64 {
         // standard normal distribution...
         let n = Normal::new(0.0, 1.0).unwrap();
         // σ√τ
-        let std_dev_sqrt_tau = self.std_dev_f * f64::sqrt(self.time_remaining_sec / SECONDS_PER_YEAR);
+        let std_dev_sqrt_tau =
+            self.std_dev_f * f64::sqrt(self.time_remaining_sec / SECONDS_PER_YEAR);
         // Φ⁻¹(1 - x)
         let invariant_term_x = n.inverse_cdf(1.0 - self.reserve_x_per_wad);
         // Φ⁻¹(y/K)
@@ -72,7 +77,8 @@ impl NormalCurve {
         // standard normal distribution...
         let n = Normal::new(0.0, 1.0).unwrap();
         // σ√τ
-        let std_dev_sqrt_tau = self.std_dev_f * f64::sqrt(self.time_remaining_sec / SECONDS_PER_YEAR);
+        let std_dev_sqrt_tau =
+            self.std_dev_f * f64::sqrt(self.time_remaining_sec / SECONDS_PER_YEAR);
         // Φ⁻¹(1 - x)
         let invariant_term_x = n.inverse_cdf(1.0 - self.reserve_x_per_wad);
         // y = KΦ(Φ⁻¹(1-x) - σ√τ + k)
@@ -82,13 +88,14 @@ impl NormalCurve {
         y
     }
 
+    /// gets the y coordinates for the trading function across the range [0,1]
     pub fn get_trading_function_coordinates(&self) -> Vec<(f64, f64)> {
         let mut points = Vec::new();
 
         let mut x = 0.0;
         let mut y = 0.0;
 
-        // can probably clean this up to not need clone 
+        // can probably clean this up to not need clone
         // maybe needs getters
         let mut copy = self.clone();
 
@@ -100,6 +107,30 @@ impl NormalCurve {
         }
 
         points
+    }
+
+    /// finds the root such that the invariant is 1e-18 more than the current invariant.
+    fn approximate_amount_out(&self, sell_asset: bool, amount_in_f: f64) -> f64 {
+        // if sell asset, use the find root swapping x, else use the find root swapping y in the bisection's fx argument
+
+        let mut data =
+            bisection::Bisection::new(0.0, 1.0, 0.0001, 1000.0, &self.find_root_swapping_x);
+        if (!sell_asset) {
+            data.fx = &self.find_root_swapping_y;
+        }
+        return data.find();
+    }
+
+    pub fn find_root_swapping_x(&self, value: f64) -> f64 {
+        let mut copy = self.clone();
+        copy.reserve_y_per_wad = value;
+        return copy.trading_function_floating() - (self.invariant_f + 1e-18);
+    }
+
+    pub fn find_root_swapping_y(&self, value: f64) -> f64 {
+        let mut copy = self.clone();
+        copy.reserve_x_per_wad = value;
+        return copy.trading_function_floating() - (self.invariant_f - 1e-18);
     }
 }
 
