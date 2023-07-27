@@ -20,6 +20,7 @@ mod log;
 mod math;
 mod raw_data;
 mod setup;
+mod spreadsheetorizer;
 mod step;
 mod task;
 
@@ -95,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Write the sim data to a file.
-    //log::write_to_file(price_process, &mut raw_data_container)?;
+    log::write_to_file(&mut raw_data_container, pool_id)?;
 
     let display = Display {
         transparent: false,
@@ -103,8 +104,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         show: false,
     };
 
-    //log::plot_reserves(display.clone(), &raw_data_container);
-    //log::plot_prices(display.clone(), &raw_data_container);
+    log::plot_reserves(display.clone(), &raw_data_container, pool_id);
+    log::plot_prices(display.clone(), &raw_data_container, pool_id);
 
     // uncomment to plot the trading curve error
     trading_curve_analysis(&manager);

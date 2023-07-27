@@ -3,6 +3,7 @@ use ethers::{
     prelude::{I256, U256},
     utils::{parse_ether, parse_units},
 };
+use polars::prelude::*;
 /// Implements the storage of raw simulation data.
 use std::collections::HashMap;
 
@@ -15,29 +16,36 @@ use bindings::i_portfolio::*;
 ///
 /// # Arguments
 /// ==================
-/// * `pool_data` - A hashmap of pool data, keyed by pool id.
-/// * `exchange_prices_wad` - A vector of exchange prices, in wad format.
-/// * `arbitrageur_balances_wad` - A hashmap of arbitrageur balances, keyed by token name.
-/// * `reported_price_wad_sol` - A vector of reported prices, in wad format.
-/// * `invariant_wad_sol` - A vector of invariant values, in wad format.
-/// * `portfolio_value_wad_sol` - Portfolio value function is the sum of the value of tokens, in wad format.
+/// * keys - Stores the series time keys, which are pool ids.
+/// * arbitrageur_balances_wad - Stores the arbitrageur's balances in wad format.
+/// * exchange_prices_wad - Stores the series exchange prices in wad format, indexed by the pool id.
+/// * pools - Stores the series pool data, indexed by the pool id.
 pub struct RawData {
-    pub pool_data: HashMap<u64, Vec<PoolsReturn>>,
-    pub exchange_prices_wad: Vec<U256>,
+    pub keys: Vec<u64>,
     pub arbitrageur_balances_wad: HashMap<String, Vec<U256>>,
+    pub exchange_prices_wad: HashMap<u64, Vec<U256>>,
+    pub pools: HashMap<u64, PoolSeries>,
+}
+
+/// # PoolSeries
+/// Stores the timeseries data for an individual pool.
+///
+/// # Fields
+/// * `pool_data` - Return value from calling `pools(uint64 poolId)` on portfolio.
+/// * `reported_price_wad_sol` - Reported price of the pool, in wad format.
+/// * `invariant_wad_sol` - Invariant value of the pool, in wad format.
+/// * `portfolio_value_wad_sol` - Portfolio value function is the sum of the value of tokens, in wad format.
+pub struct PoolSeries {
+    pub pool_data: Vec<PoolsReturn>,
     pub reported_price_wad_sol: Vec<U256>,
     pub invariant_wad_sol: Vec<I256>,
     pub portfolio_value_wad_sol: Vec<U256>,
 }
 
-/// Implements the raw data type with
-/// methods to easily handle the data.
-impl RawData {
-    pub fn new() -> Self {
+impl Default for PoolSeries {
+    fn default() -> Self {
         Self {
-            pool_data: HashMap::new(),
-            exchange_prices_wad: Vec::new(),
-            arbitrageur_balances_wad: HashMap::new(),
+            pool_data: Vec::new(),
             reported_price_wad_sol: Vec::new(),
             invariant_wad_sol: Vec::new(),
             portfolio_value_wad_sol: Vec::new(),
@@ -45,27 +53,190 @@ impl RawData {
     }
 }
 
+/// Implements the raw data type with
+/// methods to easily handle the data.
+impl RawData {
+    pub fn new() -> Self {
+        RawData {
+            keys: Vec::new(),
+            arbitrageur_balances_wad: HashMap::new(),
+            exchange_prices_wad: HashMap::new(),
+            pools: HashMap::new(),
+        }
+    }
+
+    pub fn add_key(&mut self, key: u64) {
+        self.keys.push(key);
+    }
+
+    pub fn add_arbitrageur_balance(&mut self, key: String, balance: U256) {
+        self.arbitrageur_balances_wad
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push(balance);
+    }
+
+    pub fn add_exchange_price(&mut self, key: u64, price: U256) {
+        self.exchange_prices_wad
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push(price);
+    }
+
+    pub fn add_pool_data(&mut self, key: u64, pool_data: PoolsReturn) {
+        self.pools
+            .entry(key)
+            .or_insert_with(PoolSeries::default)
+            .pool_data
+            .push(pool_data);
+    }
+
+    pub fn add_reported_price(&mut self, key: u64, price: U256) {
+        self.pools
+            .entry(key)
+            .or_insert_with(PoolSeries::default)
+            .reported_price_wad_sol
+            .push(price);
+    }
+
+    pub fn add_invariant(&mut self, key: u64, invariant: I256) {
+        self.pools
+            .entry(key)
+            .or_insert_with(PoolSeries::default)
+            .invariant_wad_sol
+            .push(invariant);
+    }
+
+    pub fn add_portfolio_value(&mut self, key: u64, value: U256) {
+        self.pools
+            .entry(key)
+            .or_insert_with(PoolSeries::default)
+            .portfolio_value_wad_sol
+            .push(value);
+    }
+
+    pub fn get_arbitrageur_balance(&self, key: &str) -> Vec<U256> {
+        self.arbitrageur_balances_wad.get(key).unwrap().clone()
+    }
+
+    pub fn get_exchange_price(&self, key: u64) -> Vec<U256> {
+        self.exchange_prices_wad.get(&key).unwrap().clone()
+    }
+
+    pub fn get_pool_data(&self, key: u64) -> Vec<PoolsReturn> {
+        self.pools.get(&key).unwrap().pool_data.clone()
+    }
+
+    pub fn get_pool_x_per_lq_float(&self, key: u64) -> Vec<f64> {
+        self.get_pool_data(key).map_x_per_lq().vec_wad_to_float()
+    }
+
+    pub fn get_pool_y_per_lq_float(&self, key: u64) -> Vec<f64> {
+        self.get_pool_data(key).map_y_per_lq().vec_wad_to_float()
+    }
+
+    pub fn get_reported_price(&self, key: u64) -> Vec<U256> {
+        self.pools.get(&key).unwrap().reported_price_wad_sol.clone()
+    }
+
+    pub fn get_invariant(&self, key: u64) -> Vec<I256> {
+        self.pools.get(&key).unwrap().invariant_wad_sol.clone()
+    }
+
+    pub fn get_portfolio_value(&self, key: u64) -> Vec<U256> {
+        self.pools
+            .get(&key)
+            .unwrap()
+            .portfolio_value_wad_sol
+            .clone()
+    }
+
+    pub fn get_arbitrageur_balance_float(&self, key: &str) -> Vec<f64> {
+        self.get_arbitrageur_balance(key).vec_wad_to_float()
+    }
+
+    pub fn get_exchange_price_float(&self, key: u64) -> Vec<f64> {
+        self.get_exchange_price(key).vec_wad_to_float()
+    }
+
+    pub fn get_reported_price_float(&self, key: u64) -> Vec<f64> {
+        self.get_reported_price(key).vec_wad_to_float()
+    }
+
+    pub fn get_invariant_float(&self, key: u64) -> Vec<f64> {
+        self.get_invariant(key).vec_wad_to_float()
+    }
+
+    pub fn get_portfolio_value_float(&self, key: u64) -> Vec<f64> {
+        self.get_portfolio_value(key).vec_wad_to_float()
+    }
+
+    /// Balance of arbitrageur's "token0", or x, tokens.
+    pub fn get_arber_reserve_x_float(&self) -> Vec<f64> {
+        // todo: fix token0 getter so we know its the right x token for a given pool...
+        self.get_arbitrageur_balance_float("token0")
+    }
+
+    /// Balance of arbitrageur's "token1", or y, tokens.
+    pub fn get_arber_reserve_y_float(&self) -> Vec<f64> {
+        self.get_arbitrageur_balance_float("token1")
+    }
+
+    /// Gets the portfolio value of the arbitrageur, which is the sum of its value of token reserves.
+    pub fn get_arber_portfolio_value_float(&self, pool_id: u64) -> Vec<f64> {
+        // get the arber reserve x and reserve y
+        // sum the reserves
+        // multiply by the exchange price
+        // return the portfolio value
+        let arber_reserve_x = self.get_arber_reserve_x_float();
+        let arber_reserve_y = self.get_arber_reserve_y_float();
+        let exchange_price = self.get_exchange_price_float(pool_id);
+
+        arber_reserve_x
+            .into_iter()
+            .zip(arber_reserve_y)
+            .zip(exchange_price)
+            .map(|((x, y), price)| (x + y) * price)
+            .collect()
+    }
+}
+
+impl Default for RawData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// # WadToFloat
 /// Converts wad integers into floats.
 pub trait WadToFloat {
-    fn wad_to_float(&self) -> Vec<f64>;
+    fn vec_wad_to_float(&self) -> Vec<f64>;
 }
 
 /// # FloatToWad
 /// Converts floats into wad integers.
 pub trait FloatToWad {
-    fn float_to_wad(&self) -> Vec<U256>;
+    fn vec_float_to_wad(&self) -> Vec<U256>;
 }
 
 impl WadToFloat for Vec<U256> {
-    fn wad_to_float(&self) -> Vec<f64> {
+    fn vec_wad_to_float(&self) -> Vec<f64> {
         self.clone().into_iter().map(wad_to_float).collect()
     }
 }
 
 impl FloatToWad for Vec<f64> {
-    fn float_to_wad(&self) -> Vec<U256> {
+    fn vec_float_to_wad(&self) -> Vec<U256> {
         self.clone().into_iter().map(float_to_wad).collect()
+    }
+}
+
+impl WadToFloat for Vec<I256> {
+    fn vec_wad_to_float(&self) -> Vec<f64> {
+        self.clone()
+            .into_iter()
+            .map(|x| x.as_i128() as f64)
+            .collect()
     }
 }
 
@@ -160,12 +331,12 @@ mod tests {
         };
 
         // insert the pool data into the raw data storage
-        RAW_.pool_data.insert(0, vec![pool_data]);
+        RAW_.add_pool_data(0, pool_data.clone());
         // get x per lq
-        let x_per_lq = vec![RAW_.pool_data.get(&0).unwrap().clone()];
-        let x_per_lq = x_per_lq[0].map_x_per_lq();
+        let x_per_lq = RAW_.pools.get(&0_u64).unwrap().pool_data.clone();
+        let x_per_lq = x_per_lq.map_x_per_lq();
         // convert to floats
-        let x_per_lq_float = x_per_lq.wad_to_float();
+        let x_per_lq_float = x_per_lq.vec_wad_to_float();
         assert_eq!(x_per_lq_float, vec![1.0]);
     }
 }

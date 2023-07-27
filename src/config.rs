@@ -83,7 +83,7 @@ impl Default for SimConfig {
     /// process mean reversion speed: 10
     /// process mean price: 1
     /// process timestep: 0.01
-    /// process num_steps: 100
+    /// process num_steps: 10
     /// pool volatility: 10%
     /// pool strike price: 1.0
     /// pool time remaining years: 1.0
@@ -98,7 +98,7 @@ impl Default for SimConfig {
             timeline: Timeline {
                 seed: 0,
                 timestep: 0.01,
-                num_steps: 100,
+                num_steps: 10,
             },
             economic: Economic {
                 initial_price: 1.0,
