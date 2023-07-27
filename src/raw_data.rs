@@ -1,7 +1,10 @@
+use arbiter::utils::{float_to_wad, wad_to_float};
+use ethers::{
+    prelude::{I256, U256},
+    utils::{parse_ether, parse_units},
+};
 /// Implements the storage of raw simulation data.
 use std::collections::HashMap;
-use ethers::prelude::{U256, I256};
-use arbiter::utils::{wad_to_float, float_to_wad};
 
 use bindings::i_portfolio::*;
 
@@ -9,7 +12,7 @@ use bindings::i_portfolio::*;
 /// ==================
 /// This is the storage of raw simulation data. All direct
 /// calls to the underlying db will have their results in this struct.
-/// 
+///
 /// # Arguments
 /// ==================
 /// * `pool_data` - A hashmap of pool data, keyed by pool id.
@@ -27,7 +30,7 @@ pub struct RawData {
     pub portfolio_value_wad_sol: Vec<U256>,
 }
 
-/// Implements the raw data type with 
+/// Implements the raw data type with
 /// methods to easily handle the data.
 impl RawData {
     pub fn new() -> Self {
@@ -40,36 +43,29 @@ impl RawData {
             portfolio_value_wad_sol: Vec::new(),
         }
     }
-
 }
 
-/// # RawTransformers
-/// ==================
-/// This trait is used to transform raw data into
-/// a more usable format. We use f64 types
-/// for most of our graphing and analysis.
-pub trait RawTransformers {
+/// # WadToFloat
+/// Converts wad integers into floats.
+pub trait WadToFloat {
     fn wad_to_float(&self) -> Vec<f64>;
+}
+
+/// # FloatToWad
+/// Converts floats into wad integers.
+pub trait FloatToWad {
     fn float_to_wad(&self) -> Vec<U256>;
 }
 
-impl RawTransformers for Vec<U256> {
-    // todo: dont think this should impl this method
-    fn float_to_wad(&self) -> Vec<U256> {
-        self.clone()
-    }
+impl WadToFloat for Vec<U256> {
     fn wad_to_float(&self) -> Vec<f64> {
         self.clone().into_iter().map(wad_to_float).collect()
     }
 }
 
-impl RawTransformers for Vec<f64> {
+impl FloatToWad for Vec<f64> {
     fn float_to_wad(&self) -> Vec<U256> {
         self.clone().into_iter().map(float_to_wad).collect()
-    }
-    // todo: dont think this should impl this method
-    fn wad_to_float(&self) -> Vec<f64> {
-        self.clone()
     }
 }
 
@@ -82,50 +78,76 @@ pub trait PoolTransformers {
 
 impl PoolTransformers for Vec<PoolsReturn> {
     fn map_x_total(&self) -> Vec<U256> {
-        let mut arr = Vec::<U256>::new();
-        self.clone().into_iter().map(|p: PoolsReturn| p.virtual_x).map(|x: u128| arr.push(U256::from(x)));
-        arr
+        self.clone()
+            .into_iter()
+            .map(|p: PoolsReturn| U256::from(p.virtual_x))
+            .into_iter()
+            .collect()
     }
 
     fn map_y_total(&self) -> Vec<U256> {
-        let mut arr = Vec::<U256>::new();
-        self.clone().into_iter().map(|p: PoolsReturn| p.virtual_y).map(|y: u128| arr.push(U256::from(y)));
-        arr
+        self.clone()
+            .into_iter()
+            .map(|p: PoolsReturn| U256::from(p.virtual_y))
+            .into_iter()
+            .collect()
     }
 
     fn map_x_per_lq(&self) -> Vec<U256> {
         // gets the x total mapping, then gets the self.liquidity, then multiplies each x by 1e18 and divides by liquidity.
-        let mut arr = Vec::<U256>::new();
         let x_total = self.map_x_total();
-        let liquidity = self.clone().into_iter().map(|p: PoolsReturn| p.liquidity);
-        x_total.into_iter().zip(liquidity).map(|(x, lq)| arr.push(x * (float_to_wad(1.0)) / (lq)));
-        arr
+        let liquidity = self
+            .clone()
+            .into_iter()
+            .map(|p: PoolsReturn| U256::from(p.liquidity));
+
+        x_total
+            .into_iter()
+            .zip(liquidity)
+            .map(|(x, lq)| {
+                x.checked_mul(parse_ether(1.0).unwrap())
+                    .unwrap()
+                    .checked_div(lq)
+                    .unwrap()
+            })
+            .into_iter()
+            .collect()
     }
 
     fn map_y_per_lq(&self) -> Vec<U256> {
-        // multiplies by 1E18 then divides by liquidity.
-        let mut arr = Vec::<U256>::new();
+        // gets the y total mapping, then gets the self.liquidity, then multiplies each y by 1e18 and divides by liquidity.
         let y_total = self.map_y_total();
-        let liquidity = self.clone().into_iter().map(|p: PoolsReturn| p.liquidity);
-        y_total.into_iter().zip(liquidity).map(|(y, lq)| arr.push(y * (float_to_wad(1.0)) / (lq)));
-        arr
+        let liquidity = self
+            .clone()
+            .into_iter()
+            .map(|p: PoolsReturn| U256::from(p.liquidity));
+
+        y_total
+            .into_iter()
+            .zip(liquidity)
+            .map(|(y, lq)| {
+                y.checked_mul(parse_ether(1.0).unwrap())
+                    .unwrap()
+                    .checked_div(lq)
+                    .unwrap()
+            })
+            .into_iter()
+            .collect()
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::PoolTransformers;
+    use super::*;
     use bindings::i_portfolio::PoolsReturn;
 
-    
     #[test]
     fn raw_data_to_floats() {
         let mut RAW_: RawData = RawData::new();
         // insert raw pool data with virtual x = 1 wad and liquidity = 1 wad
         // then call the map x per lq to get the x per l vector
-        
+
         let pool_data = PoolsReturn {
             virtual_x: 1,
             virtual_y: 1,

@@ -2,8 +2,8 @@
 use arbiter::utils::wad_to_float;
 use statrs::distribution::{ContinuousCDF, Normal};
 
-use bindings::{portfolio::PoolsReturn, shared_types::PortfolioConfig};
 use super::bisection;
+use bindings::{portfolio::PoolsReturn, shared_types::PortfolioConfig};
 
 /// Amount of seconds per year used in the smart contracts.
 pub static SECONDS_PER_YEAR: f64 = 31556953.0;
@@ -28,7 +28,7 @@ pub struct NormalCurve {
 /// Math functions of the trading function,
 /// adjusted trading function, and related
 /// expressions.
-/// 
+///
 /// Original trading function
 /// { 0    KΦ(Φ⁻¹(1-x) - σ√τ) >= y
 /// { -∞   otherwise
@@ -49,8 +49,8 @@ pub struct NormalCurve {
 ///      -> 1-x = Φ(Φ⁻¹(y/K) + σ√τ - k)
 ///          -> x = 1 - Φ(Φ⁻¹(y/K) + σ√τ - k)
 /// todo: fixed point arithmetic?
-/// 
-/// note: uses floating point math and depends on 
+///
+/// note: uses floating point math and depends on
 /// floating point math libraries, which introduce some error.
 /// Therefore, these functions are nice to use as sanity checks,
 /// to validate the behavior is consistent with fixed point counterparts.
@@ -76,7 +76,7 @@ impl NormalCurve {
 
     /// constructor from portfolio pool
     /// pool_return - Return from calling the portfolio contract's `pools(uint64 poolId)` function.
-    /// portfolio_config - Return from calling the pool's __strategy__ contract's `configs(uint64 poolId)` function. 
+    /// portfolio_config - Return from calling the pool's __strategy__ contract's `configs(uint64 poolId)` function.
     pub fn new_from_portfolio(
         pool_return: &PoolsReturn,
         portfolio_config: &PortfolioConfig,
@@ -172,7 +172,7 @@ impl NormalCurve {
         if sell_asset {
             let reserve_in = self.reserve_x_per_wad + amount_in;
             let reserve_out = self.approximate_other_reserve(true, reserve_in);
-            self.reserve_y_per_wad - reserve_out  // current reserve - new reserve
+            self.reserve_y_per_wad - reserve_out // current reserve - new reserve
         } else {
             let reserve_in = self.reserve_y_per_wad + amount_in;
             let reserve_out = self.approximate_other_reserve(false, reserve_in);
@@ -186,17 +186,16 @@ impl NormalCurve {
     pub fn approximate_other_reserve(&self, sell_asset: bool, reserve_in: f64) -> f64 {
         // if sell asset, use the find root swapping x, else use the find root swapping y in the bisection's fx argument
 
-        let mut data =
-            bisection::Bisection::new(0.0, 1.0, 0.0001, 1000.0);
-        
+        let mut data = bisection::Bisection::new(0.0, 1.0, 0.0001, 1000.0);
+
         let mut copy = self.clone();
 
         if sell_asset {
             copy.reserve_x_per_wad = reserve_in;
-            return data.bisection(|x| copy.find_root_swapping_x(x))
+            return data.bisection(|x| copy.find_root_swapping_x(x));
         } else {
             copy.reserve_y_per_wad = reserve_in;
-            return data.bisection(|x| copy.find_root_swapping_y(x))
+            return data.bisection(|x| copy.find_root_swapping_y(x));
         }
     }
 
