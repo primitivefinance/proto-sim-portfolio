@@ -18,16 +18,16 @@ mod math;
 mod setup;
 mod step;
 mod task;
+mod raw_data;
 
 #[tokio::main]
 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Simulation setup
-
     let mut manager = SimulationManager::new();
-
     setup::run(&mut manager)?;
 
+    // Simulation raw data.
     let mut sim_data = log::SimData {
         pool_data: Vec::new(),
         arbitrageur_balances: Vec::new(),
