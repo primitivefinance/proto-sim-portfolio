@@ -1,13 +1,12 @@
 use arbiter::utils::{float_to_wad, wad_to_float};
 use ethers::{
     prelude::{I256, U256},
-    utils::{parse_ether, parse_units},
+    utils::parse_ether,
 };
-use polars::prelude::*;
 /// Implements the storage of raw simulation data.
 use std::collections::HashMap;
 
-use bindings::i_portfolio::*;
+use bindings::{i_portfolio::*, normal_strategy::ConfigsReturn};
 
 /// # RawData
 /// ==================
@@ -25,7 +24,12 @@ pub struct RawData {
     pub arbitrageur_balances_wad: HashMap<String, Vec<U256>>,
     pub exchange_prices_wad: HashMap<u64, Vec<U256>>,
     pub pools: HashMap<u64, PoolSeries>,
+    pub configs: HashMap<u64, PoolConfig>,
 }
+
+/// Aliased type from the actual config stored in the pool's strategy contract.
+/// source: normal_strategy.rs
+pub type PoolConfig = ConfigsReturn;
 
 /// # PoolSeries
 /// Stores the timeseries data for an individual pool.
@@ -62,7 +66,12 @@ impl RawData {
             arbitrageur_balances_wad: HashMap::new(),
             exchange_prices_wad: HashMap::new(),
             pools: HashMap::new(),
+            configs: HashMap::new(),
         }
+    }
+
+    pub fn add_config(&mut self, key: u64, config: PoolConfig) {
+        self.configs.insert(key, config);
     }
 
     pub fn add_key(&mut self, key: u64) {

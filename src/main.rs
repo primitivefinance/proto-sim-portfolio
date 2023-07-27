@@ -17,30 +17,29 @@ use visualize::{design::*, plot::*};
 pub static OUTPUT_DIRECTORY: &str = "out_data";
 pub static OUTPUT_FILE_NAME: &str = "results";
 
-/// Defines the output csv of the raw sim data.
-#[derive(Clone, Parser, Serialize, Deserialize, Debug)]
-pub struct OutputStorage {
-    pub output_path: String,
-    pub output_file_names: String,
-}
-
 mod bisection;
 mod calls;
 mod common;
 mod config;
 mod log;
 mod math;
+mod plots;
 mod raw_data;
 mod setup;
 mod spreadsheetorizer;
 mod step;
 mod task;
 
+use log::*;
+use plots::*;
 use spreadsheetorizer::*;
 
 // useful traits
 use config::GenerateProcess;
 
+/// todo: finish the arbitrageur task with the new rust bisection
+/// todo: integrate the config into the pool creation process
+/// todo: move the contract call functions into the calls.rs file
 #[tokio::main]
 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -122,18 +121,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Write the sim data to a file.
     raw_data_container.write_to_disk(&path, pool_id)?;
 
-    let display = Display {
-        transparent: false,
-        mode: DisplayMode::Light,
-        show: false,
-    };
-
-    log::plot_reserves(display.clone(), &raw_data_container, pool_id);
-    log::plot_prices(display.clone(), &raw_data_container, pool_id);
-
-    // uncomment to plot the trading curve error
-    trading_curve_analysis(&manager);
-    //get_config(&mut manager, pool_id).unwrap();
+    // Write some plots from the data.
+    let plot = Plot::new(
+        Display {
+            transparent: false,
+            mode: DisplayMode::Light,
+            show: false,
+        },
+        raw_data_container.to_spreadsheet(pool_id),
+    );
+    plot.stacked_price_plot();
 
     // Simulation finish and log
     manager.shutdown();
