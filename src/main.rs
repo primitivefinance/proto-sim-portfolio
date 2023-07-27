@@ -6,11 +6,23 @@ use arbiter::{
     manager::SimulationManager,
     utils::recast_address,
 };
+use clap::Parser;
 use ethers::abi::Tokenize;
+use serde::{Deserialize, Serialize};
 use visualize::{design::*, plot::*};
 //use log::plot_trading_curve;
 
 // dynamic imports... generate with build.sh
+
+pub static OUTPUT_DIRECTORY: &str = "out_data";
+pub static OUTPUT_FILE_NAME: &str = "results";
+
+/// Defines the output csv of the raw sim data.
+#[derive(Clone, Parser, Serialize, Deserialize, Debug)]
+pub struct OutputStorage {
+    pub output_path: String,
+    pub output_file_names: String,
+}
 
 mod bisection;
 mod calls;
@@ -23,6 +35,8 @@ mod setup;
 mod spreadsheetorizer;
 mod step;
 mod task;
+
+use spreadsheetorizer::*;
 
 // useful traits
 use config::GenerateProcess;
@@ -95,8 +109,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         step::run(&manager, *price)?;
     }
 
+    let output = OutputStorage {
+        output_path: String::from(OUTPUT_DIRECTORY),
+        output_file_names: String::from(OUTPUT_FILE_NAME),
+    };
+
+    let path = format!(
+        "{}/{}_pool_id_{}.csv",
+        output.output_path, output.output_file_names, pool_id
+    );
+
     // Write the sim data to a file.
-    log::write_to_file(&mut raw_data_container, pool_id)?;
+    raw_data_container.write_to_disk(&path, pool_id)?;
 
     let display = Display {
         transparent: false,
