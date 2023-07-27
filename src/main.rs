@@ -13,16 +13,20 @@ use visualize::{design::*, plot::*};
 
 mod bisection;
 mod common;
+mod config;
 mod log;
 mod math;
+mod raw_data;
 mod setup;
 mod step;
 mod task;
-mod raw_data;
 
 #[tokio::main]
 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Simulation config defines the key parameters that are being used to generate data.
+    let sim_config = config::SimConfig::default();
+
     // Simulation setup
     let mut manager = SimulationManager::new();
     setup::run(&mut manager)?;
