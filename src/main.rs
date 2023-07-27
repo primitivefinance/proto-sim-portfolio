@@ -11,6 +11,7 @@ use visualize::{design::*, plot::*};
 
 // dynamic imports... generate with build.sh
 
+mod bisection;
 mod common;
 mod log;
 mod math;
@@ -134,12 +135,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::plot_prices(display.clone(), &sim_data);
 
     // uncomment to plot the trading curve error
-    //let library = log::deploy_external_normal_strategy_lib(&mut manager).unwrap();
     //trading_curve_analysis(&manager);
+    let library = log::deploy_external_normal_strategy_lib(&mut manager).unwrap();
+    //get_config(&mut manager, pool_id).unwrap();
 
     // Simulation finish and log
     manager.shutdown();
     println!("Simulation finished.");
+
+    Ok(())
+}
+
+fn get_config(manager: &SimulationManager, pool_id: u64) -> Result<(), Box<dyn std::error::Error>> {
+    let library = manager.deployed_contracts.get("library").unwrap();
+    let admin = manager.agents.get("admin").unwrap();
+    let config = log::get_configuration(admin, library, pool_id)?;
+    println!("config: {:?}", config);
 
     Ok(())
 }

@@ -134,6 +134,21 @@ pub fn trading_function(
     Ok(decoded)
 }
 
+pub fn get_configuration(
+    admin: &AgentType<IsActive>,
+    external_normal_strategy: &SimulationContract<IsDeployed>,
+    pool_id: u64,
+) -> Result<external_normal_strategy_lib::NormalCurve, Box<dyn std::error::Error>> {
+    let result = admin.call(
+        external_normal_strategy,
+        "getCurveConfiguration",
+        pool_id.into_tokens(),
+    )?;
+    let pool_return: external_normal_strategy_lib::NormalCurve = external_normal_strategy
+        .decode_output("getCurveConfiguration", unpack_execution(result)?)?;
+    Ok(pool_return)
+}
+
 /// Calls portfolio.pools
 fn get_pool(
     admin: &AgentType<IsActive>,
