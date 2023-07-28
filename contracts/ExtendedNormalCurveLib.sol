@@ -46,7 +46,10 @@ library ExtendedNormalCurveLib {
                 + stdDevSqrtTau.toInt() / 2
         );
 
-        // Φ( ln(m/γK) σ√τ + 1/2σ√τ)
+        // 1 - Rα − Φ( ln(m/γK) σ√τ + 1/2σ√τ)
+        logger.logInt(logResult);
+        logger.logInt(cdfInput);
+        logger.logInt(cdfInput.cdf());
         int256 result =
             WAD.toInt() - self.reserveXPerWad.toInt() - cdfInput.cdf();
 

@@ -21,13 +21,52 @@ interface NormalStrategyLike {
         uint256 priceWad
     )
         external
-    view
+        view
         returns (bytes memory strategyData, uint256 initialX, uint256 initialY);
 }
 
 contract Arbitrageur {
     using ExtendedNormalCurveLib for NormalCurve;
     using FixedPointMathLib for *;
+
+    function computeArbInput(
+        address portfolio,
+        uint64 poolId,
+        uint256 priceWad
+    ) public view returns (bool swapXIn, uint256 inputWad) {
+        PortfolioPool memory pool = IPortfolioStruct(portfolio).pools(poolId);
+        require(pool.liquidity > 0, "Pool has zero liquidity");
+        require(pool.virtualX > 0, "Pool has zero virtualX");
+        require(pool.virtualY > 0, "Pool has zero virtualY");
+
+        IStrategy strategy = IStrategy(IPortfolio(portfolio).DEFAULT_STRATEGY()); // todo: fix with latest portfolio version
+
+        PortfolioConfig memory config =
+            NormalStrategyLike(address(strategy)).configs(poolId);
+
+        NormalCurve memory curve = config.transform();
+        if (config.isPerpetual) curve.timeRemainingSeconds = SECONDS_PER_YEAR;
+        curve.reserveXPerWad = pool.virtualX.divWadDown(pool.liquidity);
+        curve.reserveYPerWad = pool.virtualY.divWadDown(pool.liquidity);
+        uint256 gammaPctWad = (1e4 - pool.feeBasisPoints) * WAD / 1e4;
+
+        // If xInput is 0, then we need to compute yInput, since we don't need to change x in a positive direction (sell it).
+        uint256 xInput =
+            curve.computeXInputGivenMarginalPrice(priceWad, gammaPctWad);
+        if (xInput > 0) {
+            inputWad = xInput;
+            swapXIn = true;
+        }
+
+        int256 invariant = curve.tradingFunction();
+
+        uint256 yInput = curve.computeYInputGivenMarginalPrice(
+            priceWad, gammaPctWad, invariant
+        );
+        if (yInput > 0) {
+            inputWad = yInput;
+        }
+    }
 
     function computeArbSwapOrder(
         address portfolio,
@@ -69,11 +108,10 @@ contract Arbitrageur {
         }
     }
 
-    function getConfig(address portfolio, uint64 poolId)
-        public
-        view
-        returns (PortfolioConfig memory config)
-    {
+    function getConfig(
+        address portfolio,
+        uint64 poolId
+    ) public view returns (PortfolioConfig memory config) {
         IStrategy strategy = IStrategy(IPortfolio(portfolio).DEFAULT_STRATEGY()); // todo: fix with latest portfolio version
         config = NormalStrategyLike(address(strategy)).configs(poolId);
     }

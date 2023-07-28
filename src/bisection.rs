@@ -19,12 +19,7 @@ pub struct Bisection {
 /// we reach the maximum number of iterations.
 impl Bisection {
     /// Creates a new bisection object.
-    pub fn new(
-        lower: f64,
-        upper: f64,
-        epsilon: f64,
-        max_iter: f64,
-    ) -> Self {
+    pub fn new(lower: f64, upper: f64, epsilon: f64, max_iter: f64) -> Self {
         Self {
             upper,
             lower,
@@ -35,7 +30,10 @@ impl Bisection {
 
     /// Finds the root of the function `fx` between `lower` and `upper` with a maximum error of `epsilon`.
     /// fx - function to find the root of.
-    pub fn bisection<F>(&self, fx: F) -> f64 where F: Fn(f64) -> f64 {
+    pub fn bisection<F>(&self, fx: F) -> f64
+    where
+        F: Fn(f64) -> f64,
+    {
         let mut root = 0.0;
         let mut distance = self.upper - self.lower;
         let mut iterations = 0.0;
@@ -56,6 +54,10 @@ impl Bisection {
             iterations += 1.0;
         }
 
+        println!(
+            "found root at distance {} less than epsilon {} in {} iterations",
+            distance, self.epsilon, iterations
+        );
         root
     }
 }

@@ -1,19 +1,23 @@
 use arbiter::{
     agent::Agent,
     manager::SimulationManager,
-    utils::{float_to_wad, recast_address, unpack_execution},
+    utils::{float_to_wad, recast_address, unpack_execution, wad_to_float},
 };
-use ethers::abi::{Tokenizable, Tokenize};
+use ethers::{
+    abi::{AbiDecode, AbiEncode, Tokenizable, Tokenize},
+    types::*,
+    utils::parse_ether,
+};
 use std::error::Error;
 
 // dynamic, generated with compile.sh
 use bindings::{
     i_portfolio_actions::SwapReturn,
-    portfolio::PoolsReturn,
+    portfolio::{PoolsReturn, PortfolioErrors},
     shared_types::{Order, PortfolioConfig},
 };
 
-use crate::math::NormalCurve;
+use crate::{common::Endian, math::NormalCurve};
 
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
@@ -23,27 +27,101 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
 
     let swap_order = get_swap_order(manager, pool_id, price_wad)?;
     println!("Swap order: {:#?}", swap_order);
-    bisection(manager, price, pool_id);
 
     if swap_order.input == 0 {
         println!("No swap order required.");
         return Ok(());
     }
 
-    let swap_call_result = manager
-        .agents
-        .get("arbitrageur")
-        .unwrap()
-        .call(portfolio, "swap", vec![swap_order.into_token()])
-        .unwrap();
+    let swap_call_result = manager.agents.get("arbitrageur").unwrap().call(
+        portfolio,
+        "swap",
+        vec![swap_order.into_token()],
+    )?;
 
-    let swap_result: SwapReturn =
-        portfolio.decode_output("swap", unpack_execution(swap_call_result.clone())?)?;
+    match unpack_execution(swap_call_result) {
+        Ok(unpacked) => {
+            let swap_return: SwapReturn = portfolio.decode_output("swap", unpacked)?;
+            println!(
+                "Swap return: poolId {}, input {}, output {}",
+                swap_return.pool_id, swap_return.input, swap_return.output
+            );
+        }
+        Err(e) => {
+            // This `InvalidInvariant` can pop up in multiple ways. Best to check for this.
+            println!("Error: {:?}", e);
+            let mut value = e.output.unwrap();
+            println!("Value: {:?}", value.clone().encode_hex());
 
-    match swap_call_result.is_success() {
-        true => println!("Swap call success: {:#?}", swap_result),
-        false => println!("Swap call failed: {:#?}", swap_call_result),
-    }
+            // copy the value bytes manually
+            let mut my_answer = [0_u8; 32];
+            // start to copy after the 5th byte in value
+            my_answer.copy_from_slice(&value[4..36]);
+            my_answer.reverse();
+            let res = my_answer.encode_hex();
+            println!("res: {:?}", res);
+            /* let decoded_result =
+            portfolio.decode_error("Portfolio_InvalidInvariant".to_string(), value);
+
+            println!("res: {:?}", res);
+
+            println!(
+                "decoded_result 0: {:#?}",
+                decoded_result.first().unwrap().clone().into_int().unwrap()
+            );
+
+            println!(
+                "decoded_result 1: {:?}",
+                decoded_result[1].clone().into_int().unwrap().encode_hex()
+            );
+
+            let value_0 = I256::from_token(decoded_result[0].clone())
+                .unwrap()
+                .encode_hex()
+                .parse::<Bytes>()
+                .unwrap();
+            println!("value_0: {:?}", value_0);
+
+            let mut buf = [0_u8; 32];
+
+            println!("value_0: {:?}", value_0);
+            println!(
+                "endian: {:?}",
+                U256::from_little_endian(
+                    &decoded_result[1]
+                        .clone()
+                        .into_int()
+                        .unwrap()
+                        .encode_hex()
+                        .parse::<Bytes>()
+                        .unwrap()
+                )
+            );
+
+            let r = "0x51c86a6100000000000000000000000000000000000000000000000000000000"
+                .parse::<Bytes>()
+                .unwrap();
+            let r2 = U256::from_little_endian(&r);
+            println!("r2: {:?}", r2);
+
+            let value_1 = I256::from_raw(decoded_result[1].clone().into_int().unwrap());
+
+            println!("value_1: {:?}", value_1.down_endian());
+
+            // keeping this code below me because it cost 2.5hrs...
+            // the answer is endianness i am pretty sure...
+            /* let value_0: I256 =
+                I256::from_hex_str(&decoded_result[0].clone().into_int().unwrap().encode_hex())
+                    .unwrap();
+            let value_1: I256 =
+                I256::from_hex_str(&decoded_result[1].clone().into_int().unwrap().encode_hex())
+                    .unwrap(); */
+
+            println!("0 {:#?}, 1 {:#?}", value_0, value_1);
+
+            println!("The result of `InvalidInvariant` is: {:#?}", decoded_result) */
+        }
+    };
 
     Ok(())
 }
@@ -62,70 +140,59 @@ fn get_swap_order(
     let result = arbitrageur
         .call(
             actor,
-            "computeArbSwapOrder",
+            "computeArbInput",
             (recast_address(portfolio.address), pool_id, price_wad).into_tokens(),
         )
-        .expect("Failed to call computeArbSwapOrder");
+        .expect("Failed to call computeArbInput");
 
-    let swap_order: Order =
-        actor.decode_output("computeArbSwapOrder", unpack_execution(result)?)?;
+    let (swap_x_in, order_input_wad_per_liq): (bool, U256) =
+        actor.decode_output("computeArbInput", unpack_execution(result)?)?;
 
-    Ok(swap_order)
+    println!("swap_x_in: {}", swap_x_in);
+    println!("order_input_wad_per_liq: {}", order_input_wad_per_liq);
+
+    let order_output_wad_per_liq =
+        get_amount_out(manager, pool_id, swap_x_in, order_input_wad_per_liq).unwrap();
+
+    let pool_data = arbitrageur
+        .call(portfolio, "pools", vec![pool_id.into_token()])
+        .unwrap();
+    let pool: PoolsReturn = portfolio
+        .decode_output("pools", unpack_execution(pool_data).unwrap())
+        .unwrap();
+
+    let order_input_total_wad = order_input_wad_per_liq
+        .checked_mul(U256::from(pool.liquidity))
+        .unwrap()
+        .checked_div(parse_ether(1.0).unwrap())
+        .unwrap();
+    let order_output_total_wad = order_output_wad_per_liq
+        .checked_mul(U256::from(pool.liquidity))
+        .unwrap()
+        .checked_div(parse_ether(1.0).unwrap())
+        .unwrap();
+
+    let order: Order = Order {
+        use_max: false,
+        pool_id: pool_id.into(),
+        input: order_input_total_wad.as_u128(),
+        output: order_output_total_wad.as_u128(),
+        sell_asset: swap_x_in,
+    };
+
+    Ok(order)
 }
 
-/*function bisection(
-    bytes memory args,
-    uint256 lower,
-    uint256 upper,
-    uint256 epsilon,
-    uint256 maxIterations,
-    function(bytes memory,uint256) pure returns (int256) fx
-) pure returns (uint256 root) {
-    if (lower > upper) revert BisectionLib_InvalidBounds(lower, upper);
-    // Passes the lower and upper bounds to the optimized function.
-    // Reverts if the optimized function `fx` returns both negative or both positive values.
-    // This means that the root is not between the bounds.
-    // The root is between the bounds if the product of the two values is negative.
-    int256 lowerOutput = fx(args, lower);
-    int256 upperOutput = fx(args, upper);
-    if (lowerOutput * upperOutput > 0) {
-        revert BisectionLib_RootOutsideBounds(lower, upper);
-    }
-
-    // Distance is optimized to equal `epsilon`.
-    uint256 distance = upper - lower;
-
-    uint256 iterations; // Bounds the amount of loops to `maxIterations`.
-    do {
-        // Bisection uses the point between the lower and upper bounds.
-        // The `distance` is halved each iteration.
-        root = (lower + upper) / 2;
-
-        int256 output = fx(args, root);
-
-        // If the product is negative, the root is between the lower and root.
-        // If the product is positive, the root is between the root and upper.
-        if (output * lowerOutput <= 0) {
-            upper = root; // Set the new upper bound to the root because we know its between the lower and root.
-        } else {
-            lower = root; // Set the new lower bound to the root because we know its between the upper and root.
-            lowerOutput = output; // root function value becomes new lower output value
-        }
-
-        // Update the distance with the new bounds.
-        distance = upper - lower;
-
-        unchecked {
-            iterations++; // Increment the iterator.
-        }
-    } while (distance > epsilon && iterations < maxIterations);
-}*/
 #[warn(unused_variables, dead_code)]
-pub fn bisection(manager: &SimulationManager, price: f64, pool_id: u64) {
+pub fn get_amount_out(
+    manager: &SimulationManager,
+    pool_id: u64,
+    sell_asset: bool,
+    amount_in: U256,
+) -> Result<U256, Box<dyn Error>> {
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
     let actor = manager.deployed_contracts.get("actor").unwrap();
     let arbitrageur = manager.agents.get("arbitrageur").unwrap();
-    let price_wad = float_to_wad(price);
 
     let pool_data = arbitrageur
         .call(portfolio, "pools", vec![pool_id.into_token()])
@@ -144,9 +211,15 @@ pub fn bisection(manager: &SimulationManager, price: f64, pool_id: u64) {
         .unwrap();
 
     println!("config: {:#?}", config_return);
-
     println!("pool: {:#?}", pool);
-    
-    let _rust_curve = NormalCurve::new_from_portfolio(&pool, &config_return);
 
+    let amt_out = arbitrageur
+        .call(portfolio, "getAmountOut", vec![pool_id.into_token()])
+        .unwrap();
+
+    let _rust_curve = NormalCurve::new_from_portfolio(&pool, &config_return);
+    let amount_out = _rust_curve.approximate_amount_out(sell_asset, wad_to_float(amount_in));
+    let amount_out = float_to_wad(amount_out);
+
+    Ok(amount_out)
 }

@@ -1,5 +1,6 @@
 /// Implements the portfolio "Normal Strategy" math functions in rust.
 use arbiter::utils::wad_to_float;
+use ethers::{types::U256, utils::parse_ether};
 use statrs::distribution::{ContinuousCDF, Normal};
 
 use super::bisection;
@@ -82,8 +83,20 @@ impl NormalCurve {
         portfolio_config: &PortfolioConfig,
     ) -> Self {
         Self {
-            reserve_x_per_wad: wad_to_float(pool_return.virtual_x.into()),
-            reserve_y_per_wad: wad_to_float(pool_return.virtual_y.into()),
+            reserve_x_per_wad: wad_to_float(
+                U256::from(pool_return.virtual_x)
+                    .checked_mul(parse_ether(1).unwrap())
+                    .unwrap()
+                    .checked_div(U256::from(pool_return.liquidity))
+                    .unwrap(),
+            ),
+            reserve_y_per_wad: wad_to_float(
+                U256::from(pool_return.virtual_y)
+                    .checked_mul(parse_ether(1).unwrap())
+                    .unwrap()
+                    .checked_div(U256::from(pool_return.liquidity))
+                    .unwrap(),
+            ),
             strike_price_f: wad_to_float(portfolio_config.strike_price_wad.into()),
             std_dev_f: (portfolio_config.volatility_basis_points as f64) / 10000.0,
             time_remaining_sec: portfolio_config.duration_seconds as f64,
@@ -99,6 +112,12 @@ impl NormalCurve {
         // σ√τ
         let std_dev_sqrt_tau =
             self.std_dev_f * f64::sqrt(self.time_remaining_sec / SECONDS_PER_YEAR);
+
+        // Return early if we hit the bounds...
+        // todo: should handle this better, avoids inverse_cdf error for now.
+        if self.reserve_x_per_wad >= 1.0 || self.reserve_y_per_wad >= self.strike_price_f {
+            return std_dev_sqrt_tau;
+        }
         // Φ⁻¹(1 - x)
         let invariant_term_x = n.inverse_cdf(1.0 - self.reserve_x_per_wad);
         // Φ⁻¹(y/K)
@@ -115,6 +134,11 @@ impl NormalCurve {
     /// computes the adjusted trading function y variable.
     /// y = KΦ(Φ⁻¹(1-x) - σ√τ + k)
     pub fn approximate_y_given_x_floating(&self) -> f64 {
+        // todo: handle bounds better, this assumes all reserves are in x
+        if self.reserve_x_per_wad >= 1.0 {
+            return 0.0;
+        }
+
         // standard normal distribution...
         let n = Normal::new(0.0, 1.0).unwrap();
         // σ√τ
@@ -132,6 +156,11 @@ impl NormalCurve {
     /// computes the adjusted trading function x variable.
     /// x = 1 - Φ(Φ⁻¹(y/K) + σ√τ - k)
     pub fn approximate_x_given_y_floating(&self) -> f64 {
+        // todo: handle bounds better. This assumes all tokens are in the y reserve.
+        if self.reserve_y_per_wad >= self.strike_price_f {
+            return 0.0;
+        }
+
         // standard normal distribution...
         let n = Normal::new(0.0, 1.0).unwrap();
         // σ√τ
@@ -174,6 +203,7 @@ impl NormalCurve {
             let reserve_out = self.approximate_other_reserve(true, reserve_in);
             self.reserve_y_per_wad - reserve_out // current reserve - new reserve
         } else {
+            println!("reserve y per wad: {}", self.reserve_y_per_wad);
             let reserve_in = self.reserve_y_per_wad + amount_in;
             let reserve_out = self.approximate_other_reserve(false, reserve_in);
             self.reserve_x_per_wad - reserve_out // current reserve - new reserve
@@ -186,16 +216,43 @@ impl NormalCurve {
     pub fn approximate_other_reserve(&self, sell_asset: bool, reserve_in: f64) -> f64 {
         // if sell asset, use the find root swapping x, else use the find root swapping y in the bisection's fx argument
 
-        let mut data = bisection::Bisection::new(0.0, 1.0, 0.0001, 1000.0);
-
         let mut copy = self.clone();
-
+        let mut lower_bound = 0.0;
+        let mut upper_bound = 1.0;
         if sell_asset {
             copy.reserve_x_per_wad = reserve_in;
-            return data.bisection(|x| copy.find_root_swapping_x(x));
+            let approximated = copy.approximate_y_given_x_floating();
+            println!("x reserve: {}", reserve_in);
+            println!("approximated y: {}", approximated);
+            upper_bound = approximated * 1.1;
+            lower_bound = approximated * 0.9;
         } else {
             copy.reserve_y_per_wad = reserve_in;
-            return data.bisection(|x| copy.find_root_swapping_y(x));
+            let approximated = copy.approximate_x_given_y_floating();
+            println!("y reserve: {}", reserve_in);
+            println!("approximated x: {}", approximated);
+            upper_bound = approximated * 1.1;
+            lower_bound = approximated * 0.9;
+        }
+
+        let mut data = bisection::Bisection::new(lower_bound, upper_bound, 1e-9, 1000.0);
+
+        if sell_asset {
+            let other_reserve = data.bisection(|x| copy.find_root_swapping_x(x));
+
+            copy.reserve_y_per_wad = other_reserve;
+            let k = copy.trading_function_floating();
+            println!("k: {}", k);
+
+            other_reserve
+        } else {
+            let other_reserve = data.bisection(|x| copy.find_root_swapping_y(x));
+
+            copy.reserve_x_per_wad = other_reserve;
+            let k = copy.trading_function_floating();
+            println!("k: {}", k);
+
+            other_reserve
         }
     }
 
@@ -205,7 +262,10 @@ impl NormalCurve {
     pub fn find_root_swapping_x(&self, value: f64) -> f64 {
         let mut copy = self.clone();
         copy.reserve_y_per_wad = value;
-        return copy.trading_function_floating() - (self.invariant_f + 1e-18);
+        let result = copy.trading_function_floating() - (self.invariant_f + 1e-5);
+
+        println!("swap x in, y reserve: {}, invariant: {}", value, result);
+        result
     }
 
     /// finds the root such that the invariant is 1e-18 less than the current invariant.
@@ -214,7 +274,10 @@ impl NormalCurve {
     pub fn find_root_swapping_y(&self, value: f64) -> f64 {
         let mut copy = self.clone();
         copy.reserve_x_per_wad = value;
-        return copy.trading_function_floating() - (self.invariant_f - 1e-18);
+        let result = copy.trading_function_floating() - (self.invariant_f + 1e-5);
+
+        println!("swap y in, x reserve: {}, invariant: {}", value, result);
+        result
     }
 }
 
