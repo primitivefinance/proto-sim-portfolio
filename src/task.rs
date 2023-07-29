@@ -25,6 +25,7 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
     let price_wad = float_to_wad(price);
 
+    println!("Price: {}, price_wad: {}", price, price_wad);
     let swap_order = get_swap_order(manager, pool_id, price_wad)?;
     println!("Swap order: {:#?}", swap_order);
 
@@ -33,95 +34,38 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
         return Ok(());
     }
 
-    let swap_call_result = manager.agents.get("arbitrageur").unwrap().call(
-        portfolio,
-        "swap",
-        vec![swap_order.into_token()],
-    )?;
+    let mut swap_success = false;
 
-    match unpack_execution(swap_call_result) {
-        Ok(unpacked) => {
-            let swap_return: SwapReturn = portfolio.decode_output("swap", unpacked)?;
-            println!(
-                "Swap return: poolId {}, input {}, output {}",
-                swap_return.pool_id, swap_return.input, swap_return.output
-            );
-        }
-        Err(e) => {
-            // This `InvalidInvariant` can pop up in multiple ways. Best to check for this.
-            println!("Error: {:?}", e);
-            let mut value = e.output.unwrap();
-            println!("Value: {:?}", value.clone().encode_hex());
+    let mut order = swap_order.clone();
 
-            // copy the value bytes manually
-            let mut my_answer = [0_u8; 32];
-            // start to copy after the 5th byte in value
-            my_answer.copy_from_slice(&value[4..36]);
-            my_answer.reverse();
-            let res = my_answer.encode_hex();
-            println!("res: {:?}", res);
-            /* let decoded_result =
-            portfolio.decode_error("Portfolio_InvalidInvariant".to_string(), value);
+    while !swap_success {
+        let swap_call_result = manager.agents.get("arbitrageur").unwrap().call(
+            portfolio,
+            "swap",
+            vec![order.clone().into_token()],
+        )?;
 
-            println!("res: {:?}", res);
+        match unpack_execution(swap_call_result) {
+            Ok(unpacked) => {
+                let swap_return: SwapReturn = portfolio.decode_output("swap", unpacked)?;
+                println!(
+                    "Swap return: poolId {}, input {}, output {}, starting output: {}",
+                    swap_return.pool_id, swap_return.input, swap_return.output, swap_order.output
+                );
 
-            println!(
-                "decoded_result 0: {:#?}",
-                decoded_result.first().unwrap().clone().into_int().unwrap()
-            );
+                swap_success = true;
+            }
+            Err(e) => {
+                // This `InvalidInvariant` can pop up in multiple ways. Best to check for this.
+                println!("Error: {:?}", e);
+                let mut value = e.output.unwrap();
+                println!("Value: {:?}", value.clone().encode_hex());
 
-            println!(
-                "decoded_result 1: {:?}",
-                decoded_result[1].clone().into_int().unwrap().encode_hex()
-            );
-
-            let value_0 = I256::from_token(decoded_result[0].clone())
-                .unwrap()
-                .encode_hex()
-                .parse::<Bytes>()
-                .unwrap();
-            println!("value_0: {:?}", value_0);
-
-            let mut buf = [0_u8; 32];
-
-            println!("value_0: {:?}", value_0);
-            println!(
-                "endian: {:?}",
-                U256::from_little_endian(
-                    &decoded_result[1]
-                        .clone()
-                        .into_int()
-                        .unwrap()
-                        .encode_hex()
-                        .parse::<Bytes>()
-                        .unwrap()
-                )
-            );
-
-            let r = "0x51c86a6100000000000000000000000000000000000000000000000000000000"
-                .parse::<Bytes>()
-                .unwrap();
-            let r2 = U256::from_little_endian(&r);
-            println!("r2: {:?}", r2);
-
-            let value_1 = I256::from_raw(decoded_result[1].clone().into_int().unwrap());
-
-            println!("value_1: {:?}", value_1.down_endian());
-
-            // keeping this code below me because it cost 2.5hrs...
-            // the answer is endianness i am pretty sure...
-            /* let value_0: I256 =
-                I256::from_hex_str(&decoded_result[0].clone().into_int().unwrap().encode_hex())
-                    .unwrap();
-            let value_1: I256 =
-                I256::from_hex_str(&decoded_result[1].clone().into_int().unwrap().encode_hex())
-                    .unwrap(); */
-
-            println!("0 {:#?}, 1 {:#?}", value_0, value_1);
-
-            println!("The result of `InvalidInvariant` is: {:#?}", decoded_result) */
-        }
-    };
+                // reduce output by a small amount until we are successful in swapping
+                order.output = order.output.checked_mul(999_u128).unwrap().checked_div(1000_u128).unwrap();
+            }
+        };
+    }
 
     Ok(())
 }
@@ -212,10 +156,6 @@ pub fn get_amount_out(
 
     println!("config: {:#?}", config_return);
     println!("pool: {:#?}", pool);
-
-    let amt_out = arbitrageur
-        .call(portfolio, "getAmountOut", vec![pool_id.into_token()])
-        .unwrap();
 
     let _rust_curve = NormalCurve::new_from_portfolio(&pool, &config_return);
     let amount_out = _rust_curve.approximate_amount_out(sell_asset, wad_to_float(amount_in));

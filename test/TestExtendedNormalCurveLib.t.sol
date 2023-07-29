@@ -7,6 +7,69 @@ import "contracts/ExtendedNormalCurveLib.sol";
 contract TestExtendedNormalCurveLib is Test {
     using ExtendedNormalCurveLib for *;
 
+    function test_arb_x_in() public {
+        uint256 gammaPctWad = (1e4 - 100) * 1e14; // 1% fee
+
+        PortfolioConfig memory config = PortfolioConfig({
+            strikePriceWad: 1e18,
+            volatilityBasisPoints: 1000,
+            durationSeconds: uint32(SECONDS_PER_YEAR),
+            creationTimestamp: 0, // creationTimestamp isnt set, its set to block.timestamp
+            isPerpetual: true
+        });
+
+        uint256 currentPriceWad = 1e18;
+        NormalCurve memory curve = config.transform();
+        (curve.reserveXPerWad, curve.reserveYPerWad) =
+            curve.approximateReservesGivenPrice(currentPriceWad);
+
+        uint reportedPrice = curve.approximatePriceGivenX(curve.reserveXPerWad);
+
+        // our desire to increase the x reserve, which decreases the price
+        // decrease price by our volatility parameter so we know the liquidity
+        // distribtion at the target price is > 0.
+        uint256 targetPriceWad =
+            config.strikePriceWad * (1e4 - config.volatilityBasisPoints) / 1e4; // x0.75
+
+        int256 invariant = curve.tradingFunction();
+        curve.invariant = invariant;
+        uint256 xInput =
+            curve.computeXInputGivenMarginalPrice(targetPriceWad, gammaPctWad);
+
+        uint xInput2 = curve.computeXInToMatchReportedPrice(
+            reportedPrice, targetPriceWad, gammaPctWad
+        );
+
+        uint256 yInput = curve.computeYInputGivenMarginalPrice(
+            targetPriceWad, gammaPctWad, invariant
+        );
+
+        curve.reserveXPerWad += xInput2;
+        curve.reserveYPerWad = curve.approximateYGivenX();
+        uint newReportedPrice = curve.approximatePriceGivenX(curve.reserveXPerWad);
+
+        //358532811772698703
+        //358532811772698702
+
+        console.log("invariant");
+        console.logInt(invariant);
+        console.log("new invariant");
+        console.logInt(curve.tradingFunction());
+        console.log("priceWad", currentPriceWad);
+        console.log("targetPriceWad", targetPriceWad);
+        console.log("reportedPrice", reportedPrice);
+        console.log("newReportedPrice", newReportedPrice);
+        console.log("x", curve.reserveXPerWad);
+        console.log("y", curve.reserveYPerWad);
+        console.log("xInput", xInput);
+        console.log("xInput2", xInput2);
+        console.log("yInput", yInput);
+
+        assertTrue(xInput > 0, "xInput should be non-zero");
+        assertEq(yInput, 0, "should not increase y");
+
+    }
+
     function test_input_x_given_mp() public {
         uint256 gammaPctWad = (1e4 - 100) * 1e14; // 1% fee
 

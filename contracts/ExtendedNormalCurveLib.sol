@@ -23,6 +23,39 @@ library ExtendedNormalCurveLib {
 
     error ExtendedNormalCurveLib_InvalidGammaPct(uint256);
 
+    /// @dev Δ1 = 𝛾−1(1 − 𝑅1 − Φ(Φ−1 (1 − 𝑅1) + ln(1 + 𝜖)/𝜎√𝜏)).
+    function computeXInToMatchReportedPrice(
+        NormalCurve memory self,
+        uint currentPriceWad,
+        uint256 desiredPriceWad,
+        uint256 gammaPctWad
+    ) internal pure returns (uint256 deltaX) {
+        uint epsilonScalar = desiredPriceWad.mulWadDown(gammaPctWad).divWadDown(currentPriceWad);
+        // 1 - R1
+        int256 oneMinusR1 = WAD.toInt() - self.reserveXPerWad.toInt();
+
+        // Φ−1 (1 − 𝑅1)
+        int256 cdfInvOneMinusR1 = oneMinusR1.ppf();
+
+        // ln(1 + 𝜖)
+        int256 logOnePlusEpsilon =
+            epsilonScalar.toInt().lnWad();
+
+        // ln(1 + 𝜖)/𝜎√𝜏
+        int256 logOnePlusEpsilonStdDevSqrtTau = (
+            logOnePlusEpsilon * WAD.toInt() / self.computeStdDevSqrtTau().toInt()
+        );
+
+        // Φ−1 (1 − 𝑅1) + ln(1 + 𝜖)/𝜎√𝜏
+        int256 cdfInvOneMinusR1PlusLogOnePlusEpsilonStdDevSqrtTau =
+            (cdfInvOneMinusR1 + logOnePlusEpsilonStdDevSqrtTau);
+
+    
+        int256 result = oneMinusR1
+            - cdfInvOneMinusR1PlusLogOnePlusEpsilonStdDevSqrtTau.cdf();
+        return uint256(result).mulWadDown(gammaPctWad);
+    }
+
     /// @dev ∆α = (1 − Rα − Φ( ln(m/γK) σ√τ + 1/2σ√τ)) / γ
     function computeXInputGivenMarginalPrice(
         NormalCurve memory self,
