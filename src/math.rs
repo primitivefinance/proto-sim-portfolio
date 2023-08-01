@@ -217,8 +217,8 @@ impl NormalCurve {
         // if sell asset, use the find root swapping x, else use the find root swapping y in the bisection's fx argument
 
         let mut copy = self.clone();
-        let mut lower_bound = 0.0;
-        let mut upper_bound = 1.0;
+        let lower_bound;
+        let upper_bound;
         if sell_asset {
             copy.reserve_x_per_wad = reserve_in;
             let approximated = copy.approximate_y_given_x_floating();
@@ -235,10 +235,10 @@ impl NormalCurve {
             lower_bound = approximated * 0.9;
         }
 
-        let mut data = bisection::Bisection::new(lower_bound, upper_bound, 1e-9, 1000.0);
+        let bisect = bisection::Bisection::new(lower_bound, upper_bound, 1e-9, 1000.0);
 
         if sell_asset {
-            let other_reserve = data.bisection(|x| copy.find_root_swapping_x(x));
+            let other_reserve = bisect.bisection(|x| copy.find_root_swapping_x(x));
 
             copy.reserve_y_per_wad = other_reserve;
             let k = copy.trading_function_floating();
@@ -246,7 +246,7 @@ impl NormalCurve {
 
             other_reserve
         } else {
-            let other_reserve = data.bisection(|x| copy.find_root_swapping_y(x));
+            let other_reserve = bisect.bisection(|x| copy.find_root_swapping_y(x));
 
             copy.reserve_x_per_wad = other_reserve;
             let k = copy.trading_function_floating();

@@ -17,7 +17,7 @@ use bindings::{
     shared_types::{Order, PortfolioConfig},
 };
 
-use crate::{common::Endian, math::NormalCurve};
+use crate::math::NormalCurve;
 
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
@@ -57,12 +57,17 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
             }
             Err(e) => {
                 // This `InvalidInvariant` can pop up in multiple ways. Best to check for this.
-                println!("Error: {:?}", e);
-                let mut value = e.output.unwrap();
+                println!("Invalid invariant error: {:?}", e);
+                let value = e.output.unwrap();
                 println!("Value: {:?}", value.clone().encode_hex());
 
                 // reduce output by a small amount until we are successful in swapping
-                order.output = order.output.checked_mul(999_u128).unwrap().checked_div(1000_u128).unwrap();
+                order.output = order
+                    .output
+                    .checked_mul(999_u128)
+                    .unwrap()
+                    .checked_div(1000_u128)
+                    .unwrap();
             }
         };
     }
@@ -91,6 +96,8 @@ fn get_swap_order(
 
     let (swap_x_in, order_input_wad_per_liq): (bool, U256) =
         actor.decode_output("computeArbInput", unpack_execution(result)?)?;
+
+    println!("swap_x_in: {}", order_input_wad_per_liq);
 
     println!("swap_x_in: {}", swap_x_in);
     println!("order_input_wad_per_liq: {}", order_input_wad_per_liq);
@@ -127,7 +134,6 @@ fn get_swap_order(
     Ok(order)
 }
 
-#[warn(unused_variables, dead_code)]
 pub fn get_amount_out(
     manager: &SimulationManager,
     pool_id: u64,
@@ -157,9 +163,30 @@ pub fn get_amount_out(
     println!("config: {:#?}", config_return);
     println!("pool: {:#?}", pool);
 
+    /*
     let _rust_curve = NormalCurve::new_from_portfolio(&pool, &config_return);
     let amount_out = _rust_curve.approximate_amount_out(sell_asset, wad_to_float(amount_in));
     let amount_out = float_to_wad(amount_out);
+    */
+    if amount_in == U256::from(0) {
+        return Ok(0.into());
+    }
+
+    let amount_out_call = arbitrageur.call(
+        portfolio,
+        "getAmountOut",
+        (
+            pool_id,
+            sell_asset,
+            amount_in,
+            recast_address(arbitrageur.address()),
+        )
+            .into_tokens(),
+    );
+
+    let amount_out: U256 = portfolio
+        .decode_output("getAmountOut", unpack_execution(amount_out_call?)?)
+        .unwrap();
 
     Ok(amount_out)
 }

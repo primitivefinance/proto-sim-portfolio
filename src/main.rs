@@ -152,7 +152,7 @@ fn trading_curve_analysis(manager: &SimulationManager) {
     let library = manager.deployed_contracts.get("library").unwrap();
     let admin = manager.agents.get("admin").unwrap();
 
-    let mut curve: math::NormalCurve = math::NormalCurve {
+    let curve: math::NormalCurve = math::NormalCurve {
         reserve_x_per_wad: 0.308537538726,
         reserve_y_per_wad: 0.308537538726,
         strike_price_f: 1.0,
