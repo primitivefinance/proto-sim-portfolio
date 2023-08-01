@@ -87,16 +87,31 @@ fn get_swap_order(
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
 
     println!("here");
-    let result = arbitrageur
-        .call(
-            actor,
-            "computeArbInput",
-            (recast_address(portfolio.address), pool_id, price_wad).into_tokens(),
-        )
-        .expect("Failed to call computeArbInput");
+    let result = arbitrageur.call(
+        actor,
+        "computeArbInput",
+        (recast_address(portfolio.address), pool_id, price_wad).into_tokens(),
+    )?;
 
-    let (swap_x_in, order_input_wad_per_liq): (bool, U256) =
-        actor.decode_output("computeArbInput", unpack_execution(result)?)?;
+    let mut swap_x_in: bool = false;
+    let mut order_input_wad_per_liq: U256 = U256::from(0);
+
+    match unpack_execution(result) {
+        Ok(unpacked) => {
+            (swap_x_in, order_input_wad_per_liq) =
+                actor.decode_output("computeArbInput", unpacked)?;
+            println!(
+                "decoded computeArbInput: swapInX {:?} order input {:?}",
+                swap_x_in, order_input_wad_per_liq
+            );
+        }
+        Err(e) => {
+            println!("Error: {:?}", e);
+        }
+    }
+
+    /* let (swap_x_in, order_input_wad_per_liq): (bool, U256) =
+    actor.decode_output("computeArbInput", unpack_execution(result)?)?; */
     println!("there");
 
     println!("swap_x_in: {}", order_input_wad_per_liq);

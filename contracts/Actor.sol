@@ -48,27 +48,34 @@ contract Arbitrageur {
         require(spotPrice > 0, "Spot price is zero");
 
         NormalCurve memory curve = config.transform();
+        require(curve.standardDeviationWad > 0, "Standard deviation is zero");
+        require(curve.strikePriceWad > 0, "Strike price is zero");
+        require(curve.timeRemainingSeconds > 0, "Time remaining is zero");
         if (config.isPerpetual) curve.timeRemainingSeconds = SECONDS_PER_YEAR;
         curve.reserveXPerWad = pool.virtualX.divWadDown(pool.liquidity);
         curve.reserveYPerWad = pool.virtualY.divWadDown(pool.liquidity);
-        uint256 gammaPctWad = (1e4 - pool.feeBasisPoints) * WAD / 1e4;
+        uint256 gammaPctWad = ((1e4 - pool.feeBasisPoints) * WAD) / 1e4;
 
         // If xInput is 0, then we need to compute yInput, since we don't need to change x in a positive direction (sell it).
-        uint256 xInput =
-            curve.computeXInToMatchReportedPrice(spotPrice, priceWad, gammaPctWad);
+        uint256 xInput = curve.computeXInToMatchReportedPrice(
+            spotPrice, priceWad, gammaPctWad
+        );
         if (xInput > 0) {
             inputWad = xInput;
             swapXIn = true;
+            return (true, xInput);
         }
 
         int256 invariant = curve.tradingFunction();
 
-        uint256 yInput = curve.computeYInputGivenMarginalPrice(
-            priceWad, gammaPctWad, invariant
+        uint256 yInput = curve.computeYInToMatchReportedPrice(
+            spotPrice, priceWad, gammaPctWad
         );
         if (yInput > 0) {
             inputWad = yInput;
         }
+
+        require(yInput > 0 || xInput > 0, "Input is zero");
     }
 
     function computeArbSwapOrder(
