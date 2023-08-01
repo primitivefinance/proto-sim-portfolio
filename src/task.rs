@@ -86,6 +86,7 @@ fn get_swap_order(
     let actor = manager.deployed_contracts.get("actor").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
 
+    println!("here");
     let result = arbitrageur
         .call(
             actor,
@@ -96,6 +97,7 @@ fn get_swap_order(
 
     let (swap_x_in, order_input_wad_per_liq): (bool, U256) =
         actor.decode_output("computeArbInput", unpack_execution(result)?)?;
+    println!("there");
 
     println!("swap_x_in: {}", order_input_wad_per_liq);
 

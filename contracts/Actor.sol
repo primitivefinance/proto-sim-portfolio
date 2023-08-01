@@ -44,6 +44,9 @@ contract Arbitrageur {
         PortfolioConfig memory config =
             NormalStrategyLike(address(strategy)).configs(poolId);
 
+        uint256 spotPrice = IPortfolio(portfolio).getSpotPrice(poolId);
+        require(spotPrice > 0, "Spot price is zero");
+
         NormalCurve memory curve = config.transform();
         if (config.isPerpetual) curve.timeRemainingSeconds = SECONDS_PER_YEAR;
         curve.reserveXPerWad = pool.virtualX.divWadDown(pool.liquidity);
@@ -52,7 +55,7 @@ contract Arbitrageur {
 
         // If xInput is 0, then we need to compute yInput, since we don't need to change x in a positive direction (sell it).
         uint256 xInput =
-            curve.computeXInputGivenMarginalPrice(priceWad, gammaPctWad);
+            curve.computeXInToMatchReportedPrice(spotPrice, priceWad, gammaPctWad);
         if (xInput > 0) {
             inputWad = xInput;
             swapXIn = true;
