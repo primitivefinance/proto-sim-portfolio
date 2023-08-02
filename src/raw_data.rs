@@ -24,7 +24,22 @@ pub struct RawData {
     pub arbitrageur_balances_wad: HashMap<String, Vec<U256>>,
     pub exchange_prices_wad: HashMap<u64, Vec<U256>>,
     pub pools: HashMap<u64, PoolSeries>,
+    pub derived_data: HashMap<u64, DerivedData>,
     pub configs: HashMap<u64, PoolConfig>,
+}
+
+pub struct DerivedData {
+    pub arbitrageur_portfolio_value: Vec<f64>,
+    pub pool_portfolio_value: Vec<f64>,
+}
+
+impl Default for DerivedData {
+    fn default() -> Self {
+        Self {
+            arbitrageur_portfolio_value: Vec::new(),
+            pool_portfolio_value: Vec::new(),
+        }
+    }
 }
 
 /// Aliased type from the actual config stored in the pool's strategy contract.
@@ -66,6 +81,7 @@ impl RawData {
             arbitrageur_balances_wad: HashMap::new(),
             exchange_prices_wad: HashMap::new(),
             pools: HashMap::new(),
+            derived_data: HashMap::new(),
             configs: HashMap::new(),
         }
     }
@@ -121,6 +137,22 @@ impl RawData {
             .entry(key)
             .or_insert_with(PoolSeries::default)
             .portfolio_value_wad_sol
+            .push(value);
+    }
+
+    pub fn add_arbitrageur_portfolio_value(&mut self, key: u64, value: f64) {
+        self.derived_data
+            .entry(key)
+            .or_insert_with(DerivedData::default)
+            .arbitrageur_portfolio_value
+            .push(value);
+    }
+
+    pub fn add_pool_portfolio_value(&mut self, key: u64, value: f64) {
+        self.derived_data
+            .entry(key)
+            .or_insert_with(DerivedData::default)
+            .pool_portfolio_value
             .push(value);
     }
 

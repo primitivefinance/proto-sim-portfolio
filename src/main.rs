@@ -118,6 +118,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         output.output_path, output.output_file_names, pool_id
     );
 
+    println!(
+        "arb value {:?}",
+        raw_data_container
+            .derived_data
+            .get(&pool_id)
+            .unwrap()
+            .arbitrageur_portfolio_value
+    );
+
     // Write the sim data to a file.
     raw_data_container.write_to_disk(&path, pool_id)?;
 

@@ -9,6 +9,7 @@ use arbiter::{
     stochastic::price_process::PriceProcess, utils::*,
 };
 use ethers::abi::Tokenize;
+use ethers::core::utils;
 use ethers::prelude::U256;
 use polars::prelude::*;
 use revm::primitives::Address;
@@ -57,11 +58,29 @@ pub fn run(
     let exchange_price = get_reference_price(admin, exchange, token0.address)?;
     raw_data_container.add_exchange_price(pool_id, exchange_price);
 
-    // 3. Edit pools data
+    let price_token0 = utils::format_units(exchange_price, "ether")?.parse::<f64>()?;
+    let price_token1 = 1.0 / price_token0;
+
+    let arb_balance_token0_float =
+        utils::format_units(arbitrageur_balance_0, "ether")?.parse::<f64>()?;
+    let arb_balance_token1_float =
+        utils::format_units(arbitrageur_balance_1, "ether")?.parse::<f64>()?;
+
+    let portfolio_value =
+        arb_balance_token0_float * price_token0 + arb_balance_token1_float * price_token1;
+
+    raw_data_container.add_arbitrageur_portfolio_value(pool_id, portfolio_value);
 
     // 3a. Edit portfolio pool data
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
     let pool_data = get_pool(admin, portfolio, pool_id)?;
+
+    let pool_reserve_x = utils::format_units(pool_data.virtual_x, "ether")?.parse::<f64>()?;
+    let pool_reserve_y = utils::format_units(pool_data.virtual_y, "ether")?.parse::<f64>()?;
+
+    let pool_value = pool_reserve_x * price_token0 + pool_reserve_y * price_token1;
+
+    raw_data_container.add_pool_portfolio_value(pool_id, pool_value);
     raw_data_container.add_pool_data(pool_id, pool_data);
 
     // 3b. Edit portfolio reported price
