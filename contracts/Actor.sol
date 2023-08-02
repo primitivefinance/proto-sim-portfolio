@@ -21,13 +21,62 @@ interface NormalStrategyLike {
         uint256 priceWad
     )
         external
-    view
+        view
         returns (bytes memory strategyData, uint256 initialX, uint256 initialY);
 }
 
 contract Arbitrageur {
     using ExtendedNormalCurveLib for NormalCurve;
     using FixedPointMathLib for *;
+
+    function computeArbInput(
+        address portfolio,
+        uint64 poolId,
+        uint256 priceWad
+    ) public view returns (bool swapXIn, uint256 inputWad) {
+        PortfolioPool memory pool = IPortfolioStruct(portfolio).pools(poolId);
+        require(pool.liquidity > 0, "Pool has zero liquidity");
+        require(pool.virtualX > 0, "Pool has zero virtualX");
+        require(pool.virtualY > 0, "Pool has zero virtualY");
+
+        IStrategy strategy = IStrategy(IPortfolio(portfolio).DEFAULT_STRATEGY()); // todo: fix with latest portfolio version
+
+        PortfolioConfig memory config =
+            NormalStrategyLike(address(strategy)).configs(poolId);
+
+        uint256 spotPrice = IPortfolio(portfolio).getSpotPrice(poolId);
+        require(spotPrice > 0, "Spot price is zero");
+
+        NormalCurve memory curve = config.transform();
+        require(curve.standardDeviationWad > 0, "Standard deviation is zero");
+        require(curve.strikePriceWad > 0, "Strike price is zero");
+        require(curve.timeRemainingSeconds > 0, "Time remaining is zero");
+        if (config.isPerpetual) curve.timeRemainingSeconds = SECONDS_PER_YEAR;
+        curve.reserveXPerWad = pool.virtualX.divWadDown(pool.liquidity);
+        curve.reserveYPerWad = pool.virtualY.divWadDown(pool.liquidity);
+        uint256 gammaPctWad = ((1e4 - pool.feeBasisPoints) * WAD) / 1e4;
+
+        // If xInput is 0, then we need to compute yInput, since we don't need to change x in a positive direction (sell it).
+        uint256 xInput = curve.computeXInToMatchReportedPrice(
+            spotPrice, priceWad, gammaPctWad
+        );
+        if (xInput > 0) {
+            inputWad = xInput;
+            swapXIn = true;
+            return (true, xInput);
+        }
+
+        int256 invariant = curve.tradingFunction();
+
+        uint256 yInput = curve.computeYInToMatchReportedPrice(
+            spotPrice, priceWad, gammaPctWad
+        );
+        if (yInput > 0) {
+            inputWad = yInput;
+        }
+
+        require(yInput > 0 || xInput > 0, "Input is zero");
+    }
 
     function computeArbSwapOrder(
         address portfolio,
@@ -67,6 +116,14 @@ contract Arbitrageur {
         if (yInput > 0) {
             return _getOrder(portfolio, poolId, false, yInput, pool.liquidity);
         }
+    }
+
+    function getConfig(
+        address portfolio,
+        uint64 poolId
+    ) public view returns (PortfolioConfig memory config) {
+        IStrategy strategy = IStrategy(IPortfolio(portfolio).DEFAULT_STRATEGY()); // todo: fix with latest portfolio version
+        config = NormalStrategyLike(address(strategy)).configs(poolId);
     }
 
     function _getOrder(

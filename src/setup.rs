@@ -1,11 +1,11 @@
 use arbiter::agent::simple_arbitrageur::SimpleArbitrageur;
 use arbiter::agent::{Agent, AgentType, SimulationEventFilter};
 use arbiter::{
-    environment::contract::SimulationContract,
-    manager,
+    environment::contract::{IsDeployed, SimulationContract},
+    manager::SimulationManager,
     utils::{float_to_wad, recast_address, unpack_execution},
 };
-use bindings::i_portfolio_actions::CreatePoolCall;
+use bindings::{external_normal_strategy_lib, i_portfolio_actions::CreatePoolCall};
 // dynamic imports... generate with build.sh
 use bindings::{actor, entrypoint, exchange, mock_erc20, portfolio, weth};
 use ethers::{
@@ -16,8 +16,12 @@ use ethers::{
 use revm::primitives::B160;
 
 use super::common;
+use super::config;
 
-pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(
+    manager: &mut SimulationManager,
+    config: &config::SimConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
 
     // Deploy weth
@@ -169,12 +173,14 @@ pub fn run(manager: &mut manager::SimulationManager) -> Result<(), Box<dyn std::
         get_pair_nonce_result
     );
 
+    deploy_external_normal_strategy_lib(manager)?;
+
     setup_agent(manager);
 
     Ok(())
 }
 
-fn setup_agent(manager: &mut manager::SimulationManager) {
+fn setup_agent(manager: &mut SimulationManager) {
     let exchange = manager.deployed_contracts.get("exchange").unwrap();
 
     let event_filters = vec![SimulationEventFilter::new(exchange, "PriceChange")];
@@ -210,7 +216,7 @@ pub async fn init_arbitrageur(
     );
 }
 
-pub fn init_pool(manager: &manager::SimulationManager) -> Result<u64, Box<dyn std::error::Error>> {
+pub fn init_pool(manager: &SimulationManager) -> Result<u64, Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
 
@@ -245,7 +251,7 @@ pub fn init_pool(manager: &manager::SimulationManager) -> Result<u64, Box<dyn st
     Ok(pool_id)
 }
 
-fn build_create_pool_call(manager: &manager::SimulationManager) -> CreatePoolCall {
+fn build_create_pool_call(manager: &SimulationManager) -> CreatePoolCall {
     let admin = manager.agents.get("admin").unwrap();
     let actor = manager.deployed_contracts.get("actor").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
@@ -293,7 +299,7 @@ fn build_create_pool_call(manager: &manager::SimulationManager) -> CreatePoolCal
 }
 
 pub fn allocate_liquidity(
-    manager: &manager::SimulationManager,
+    manager: &SimulationManager,
     pool_id: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
@@ -326,4 +332,21 @@ pub fn allocate_liquidity(
     println!("allocated liquidity to pool: {:?}", pool_id);
 
     Ok(())
+}
+
+pub fn deploy_external_normal_strategy_lib(
+    manager: &mut SimulationManager,
+) -> Result<&SimulationContract<IsDeployed>, Box<dyn std::error::Error>> {
+    let admin = manager.agents.get("admin").unwrap();
+    let library = SimulationContract::new(
+        external_normal_strategy_lib::EXTERNALNORMALSTRATEGYLIB_ABI.clone(),
+        external_normal_strategy_lib::EXTERNALNORMALSTRATEGYLIB_BYTECODE.clone(),
+    );
+    let (library_contract, _) = admin.deploy(library, vec![])?;
+    manager
+        .deployed_contracts
+        .insert("library".to_string(), library_contract);
+
+    let library = manager.deployed_contracts.get("library").unwrap();
+    Ok(library)
 }

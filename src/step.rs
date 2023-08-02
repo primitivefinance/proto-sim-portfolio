@@ -13,6 +13,8 @@ pub fn run(manager: &SimulationManager, price: f64) -> Result<(), Box<dyn std::e
     let token = manager.deployed_contracts.get("token0").unwrap();
 
     let wad_price = float_to_wad(price);
+
+    // Triggers the "PriceChange" event, which agents might be awaiting.
     let new_price_call = admin.call(
         exchange,
         "setPrice",
@@ -20,7 +22,7 @@ pub fn run(manager: &SimulationManager, price: f64) -> Result<(), Box<dyn std::e
     )?;
 
     match new_price_call.is_success() {
-        true => {} //println!("New price set: {:#?}", new_price_call),
+        true => {} // just be quiet... make noise if there's an error.,
         false => println!("New price failed to set: {}", price),
     }
 

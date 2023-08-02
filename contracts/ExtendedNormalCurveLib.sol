@@ -23,6 +23,88 @@ library ExtendedNormalCurveLib {
 
     error ExtendedNormalCurveLib_InvalidGammaPct(uint256);
 
+    /// @dev Δ2 = 𝛾−1 𝐾 Φ(Φ−1 (1 − 𝑅1) − 𝜎√𝜏 + ln(1 + 𝜖)/𝜎√𝜏)−𝛾−1𝑅2
+    function computeYInToMatchReportedPrice(
+        NormalCurve memory self,
+        uint256 currentPriceWad,
+        uint256 desiredPriceWad,
+        uint256 gammaPctWd
+    ) internal pure returns (uint256 deltaY) {
+        uint256 epsilonScalar = desiredPriceWad.divWadDown(currentPriceWad);
+        // todo: add check we are in the right function! scalar should be positive? double check that
+
+        uint256 stdDevSqrtTau = self.computeStdDevSqrtTau();
+
+        // 1 - R1
+        int256 oneMinusR1 = WAD.toInt() - self.reserveXPerWad.toInt();
+
+        // Φ−1 (1 − 𝑅1)
+        int256 cdfInvOneMinusR1 = oneMinusR1.ppf();
+
+        // ln(1 + 𝜖)
+        int256 logOnePlusEpsilon = epsilonScalar.toInt().lnWad();
+
+        // ln(1 + 𝜖)/𝜎√𝜏
+        int256 logOnePlusEpsilonStdDevSqrtTau = (
+            logOnePlusEpsilon * WAD.toInt()
+                / self.computeStdDevSqrtTau().toInt()
+        );
+
+        // Φ−1 (1 − 𝑅1) + ln(1 + 𝜖)/𝜎√𝜏
+        int256 cdfInvOneMinusR1PlusLogOnePlusEpsilonStdDevSqrtTau =
+            (cdfInvOneMinusR1 + logOnePlusEpsilonStdDevSqrtTau);
+
+        // 𝐾 Φ(Φ−1 (1 − 𝑅1) − 𝜎√𝜏 + ln(1 + 𝜖)/𝜎√𝜏)
+        int256 kTimesCdfInput = (
+            self.strikePriceWad.toInt()
+                * (
+                    cdfInvOneMinusR1PlusLogOnePlusEpsilonStdDevSqrtTau
+                        - stdDevSqrtTau.toInt()
+                ).cdf() / WAD.toInt()
+        );
+
+        // 𝛾−1 𝐾 Φ(Φ−1 (1 − 𝑅1) − 𝜎√𝜏 + ln(1 + 𝜖)/𝜎√𝜏)
+        int256 result = gammaPctWd.toInt() * kTimesCdfInput / WAD.toInt()
+            - gammaPctWd.mulWadDown(self.reserveYPerWad).toInt();
+
+        return result.toUint();
+    }
+
+    /// @dev Δ1 = 𝛾−1(1 − 𝑅1 − Φ(Φ−1 (1 − 𝑅1) + ln(1 + 𝜖)/𝜎√𝜏)).
+    function computeXInToMatchReportedPrice(
+        NormalCurve memory self,
+        uint256 currentPriceWad,
+        uint256 desiredPriceWad,
+        uint256 gammaPctWad
+    ) internal pure returns (uint256 deltaX) {
+        require(currentPriceWad > 0, "current price is 0");
+        uint256 epsilonScalar = desiredPriceWad.divWadDown(currentPriceWad);
+        logger.log(desiredPriceWad, currentPriceWad);
+        // 1 - R1
+        int256 oneMinusR1 = WAD.toInt() - self.reserveXPerWad.toInt();
+
+        // Φ−1 (1 − 𝑅1)
+        int256 cdfInvOneMinusR1 = oneMinusR1.ppf();
+
+        // ln(1 + 𝜖)
+        int256 logOnePlusEpsilon = epsilonScalar.toInt().lnWad();
+        logger.logInt(logOnePlusEpsilon);
+
+        // ln(1 + 𝜖)/𝜎√𝜏
+        int256 logOnePlusEpsilonStdDevSqrtTau = (
+            logOnePlusEpsilon * WAD.toInt()
+                / self.computeStdDevSqrtTau().toInt()
+        );
+
+        // Φ−1 (1 − 𝑅1) + ln(1 + 𝜖)/𝜎√𝜏
+        int256 cdfInvOneMinusR1PlusLogOnePlusEpsilonStdDevSqrtTau =
+            (cdfInvOneMinusR1 + logOnePlusEpsilonStdDevSqrtTau);
+
+        int256 result = oneMinusR1
+            - cdfInvOneMinusR1PlusLogOnePlusEpsilonStdDevSqrtTau.cdf();
+        return result.toUint().mulWadDown(gammaPctWad);
+    }
+
     /// @dev ∆α = (1 − Rα − Φ( ln(m/γK) σ√τ + 1/2σ√τ)) / γ
     function computeXInputGivenMarginalPrice(
         NormalCurve memory self,
@@ -46,7 +128,10 @@ library ExtendedNormalCurveLib {
                 + stdDevSqrtTau.toInt() / 2
         );
 
-        // Φ( ln(m/γK) σ√τ + 1/2σ√τ)
+        // 1 - Rα − Φ( ln(m/γK) σ√τ + 1/2σ√τ)
+        logger.logInt(logResult);
+        logger.logInt(cdfInput);
+        logger.logInt(cdfInput.cdf());
         int256 result =
             WAD.toInt() - self.reserveXPerWad.toInt() - cdfInput.cdf();
 

@@ -1,14 +1,12 @@
 use clap::Parser;
+use ethers::types::I256;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::{error::Error, fs::File};
 
 use arbiter::{
-    agent::*,
-    environment::contract::*,
-    manager::SimulationManager,
-    stochastic::price_process::{PriceProcess, PriceProcessType, GBM, OU},
-    utils::*,
+    agent::*, environment::contract::*, manager::SimulationManager,
+    stochastic::price_process::PriceProcess, utils::*,
 };
 use ethers::abi::Tokenize;
 use ethers::prelude::U256;
@@ -16,35 +14,29 @@ use polars::prelude::*;
 use revm::primitives::Address;
 use visualize::{design::*, plot::*};
 
-use super::math;
+use super::{math, raw_data::*, spreadsheetorizer::*};
 
 // dynamic... generated with build.sh
-use bindings::{external_normal_strategy_lib, i_portfolio_getters::*};
+use bindings::{external_normal_strategy_lib, i_portfolio::*};
 
 pub static OUTPUT_DIRECTORY: &str = "out_data";
 pub static OUTPUT_FILE_NAME: &str = "results";
 
-/// Struct for storing simulation data
-pub struct SimData {
-    pub pool_data: Vec<PoolsReturn>,
-    pub arbitrageur_balances: Vec<HashMap<u64, U256>>, // maps token index (0 or 1) => balance
-    pub reference_prices: Vec<U256>,
-    pub portfolio_prices: Vec<U256>,
-}
-
-// Path: src/log.rs
-//
-// @notice
-// Data collection is handled before a step in the simulation, so it starts at zero.
-//
-// @dev
-// Collected data:
-// 1. Pool data
-// 2. Actor token balances
-// 3. Reference market prices
+/// # Log::Run
+/// Fetches the raw simulation data and records
+/// it to the raw_data container.
+///
+/// # Data collected
+/// - Arbitrageur balances for each token
+/// - Portfolio pool data
+/// - Portfolio reported price
+/// - Exchange price
+///
+/// # Notes
+/// - Must log an entry for each series point so all vectors are equal in length!
 pub fn run(
     manager: &SimulationManager,
-    sim_data: &mut SimData,
+    raw_data_container: &mut RawData,
     pool_id: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
@@ -52,42 +44,39 @@ pub fn run(
     let token0 = manager.deployed_contracts.get("token0").unwrap();
     let token1 = manager.deployed_contracts.get("token1").unwrap();
 
+    // 1. Edit the arb balances
+    let token_key_0 = "token0".to_string();
+    let token_key_1 = "token1".to_string();
     let arbitrageur_balance_0 = get_balance(admin, token0, arbitrageur.address())?;
     let arbitrageur_balance_1 = get_balance(admin, token1, arbitrageur.address())?;
-    let mut arbitrageur_balance = HashMap::new();
-    arbitrageur_balance.insert(0, arbitrageur_balance_0);
-    arbitrageur_balance.insert(1, arbitrageur_balance_1);
-    sim_data.arbitrageur_balances.push(arbitrageur_balance);
+    raw_data_container.add_arbitrageur_balance(token_key_0, arbitrageur_balance_0);
+    raw_data_container.add_arbitrageur_balance(token_key_1, arbitrageur_balance_1);
 
-    let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-    let pool_data = get_pool(admin, portfolio, pool_id)?;
-    sim_data.pool_data.push(pool_data);
-
-    let portfolio_prices = get_portfolio_prices(admin, portfolio, pool_id)?;
-    sim_data.portfolio_prices.push(portfolio_prices);
-
+    // 2. Edit the exchange price
     let exchange = manager.deployed_contracts.get("exchange").unwrap();
     let exchange_price = get_reference_price(admin, exchange, token0.address)?;
-    sim_data.reference_prices.push(exchange_price);
+    raw_data_container.add_exchange_price(pool_id, exchange_price);
+
+    // 3. Edit pools data
+
+    // 3a. Edit portfolio pool data
+    let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
+    let pool_data = get_pool(admin, portfolio, pool_id)?;
+    raw_data_container.add_pool_data(pool_id, pool_data);
+
+    // 3b. Edit portfolio reported price
+    let portfolio_prices = get_portfolio_prices(admin, portfolio, pool_id)?;
+    raw_data_container.add_reported_price(pool_id, portfolio_prices);
+
+    // 3c. Edit portfolio invariant
+    let portfolio_invariant: I256 = I256::zero(); // todo: get actual invariant
+    raw_data_container.add_invariant(pool_id, portfolio_invariant);
+
+    // 3d. Edit portfolio value
+    let portfolio_value = U256::zero(); // todo: get actual portfolio value
+    raw_data_container.add_portfolio_value(pool_id, portfolio_value);
 
     Ok(())
-}
-
-pub fn deploy_external_normal_strategy_lib(
-    manager: &mut SimulationManager,
-) -> Result<&SimulationContract<IsDeployed>, Box<dyn std::error::Error>> {
-    let admin = manager.agents.get("admin").unwrap();
-    let library = SimulationContract::new(
-        external_normal_strategy_lib::EXTERNALNORMALSTRATEGYLIB_ABI.clone(),
-        external_normal_strategy_lib::EXTERNALNORMALSTRATEGYLIB_BYTECODE.clone(),
-    );
-    let (library_contract, _) = admin.deploy(library, vec![])?;
-    manager
-        .deployed_contracts
-        .insert("library".to_string(), library_contract);
-
-    let library = manager.deployed_contracts.get("library").unwrap();
-    Ok(library)
 }
 
 pub fn approximate_y_given_x(
@@ -134,6 +123,21 @@ pub fn trading_function(
     Ok(decoded)
 }
 
+pub fn get_configuration(
+    admin: &AgentType<IsActive>,
+    external_normal_strategy: &SimulationContract<IsDeployed>,
+    pool_id: u64,
+) -> Result<external_normal_strategy_lib::NormalCurve, Box<dyn std::error::Error>> {
+    let result = admin.call(
+        external_normal_strategy,
+        "getCurveConfiguration",
+        pool_id.into_tokens(),
+    )?;
+    let pool_return: external_normal_strategy_lib::NormalCurve = external_normal_strategy
+        .decode_output("getCurveConfiguration", unpack_execution(result)?)?;
+    Ok(pool_return)
+}
+
 /// Calls portfolio.pools
 fn get_pool(
     admin: &AgentType<IsActive>,
@@ -178,292 +182,11 @@ fn get_reference_price(
     Ok(reference_price)
 }
 
+/// Defines the output file directory and name for the plots and csv data.
 #[derive(Clone, Parser, Serialize, Deserialize, Debug)]
 pub struct OutputStorage {
     pub output_path: String,
     pub output_file_names: String,
-}
-
-pub fn write_to_file(
-    price_process: PriceProcess,
-    data: &mut SimData,
-) -> Result<(), Box<dyn Error>> {
-    let output = OutputStorage {
-        output_path: String::from(OUTPUT_DIRECTORY),
-        output_file_names: String::from(OUTPUT_FILE_NAME),
-    };
-
-    let series_length = data.pool_data.len();
-    let seed = Series::new("seed", vec![price_process.seed; series_length]);
-    let timestep = Series::new("timestep", vec![price_process.timestep; series_length]);
-
-    let mut dataframe = make_series(data).unwrap();
-
-    match price_process.process_type {
-        PriceProcessType::OU(OU {
-            volatility,
-            mean_reversion_speed,
-            mean_price,
-        }) => {
-            let volatility = Series::new("drift", vec![volatility; series_length]);
-            let mean_reversion_speed = Series::new(
-                "mean_reversion_speed",
-                vec![mean_reversion_speed; series_length],
-            );
-            let mean_price = Series::new("mean_price", vec![mean_price; series_length]);
-
-            dataframe.hstack_mut(&[
-                volatility,
-                timestep,
-                seed,
-                mean_reversion_speed,
-                mean_price,
-            ])?;
-
-            println!("Dataframe: {:#?}", dataframe);
-            let volatility = match price_process.process_type {
-                PriceProcessType::GBM(GBM { volatility, .. }) => volatility,
-                PriceProcessType::OU(OU { volatility, .. }) => volatility,
-            };
-            let file = File::create(format!(
-                "{}/{}_{}_{}.csv",
-                output.output_path, output.output_file_names, volatility, 0
-            ))?;
-            let mut writer = CsvWriter::new(file);
-            writer.finish(&mut dataframe)?;
-        }
-        _ => {
-            //na
-        }
-    };
-
-    Ok(())
-}
-
-fn make_series(data: &mut SimData) -> Result<DataFrame, Box<dyn std::error::Error>> {
-    // converts data.reference_prices to a float in a vector
-
-    let exchange_prices = data
-        .reference_prices
-        .clone()
-        .into_iter()
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    // converts data.portfolio_prices to a float in a vector
-    let portfolio_prices = data
-        .portfolio_prices
-        .clone()
-        .into_iter()
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    // converts each data.pool_data.virtualX to a float in a vector
-    let reserve_x = data
-        .pool_data
-        .clone()
-        .into_iter()
-        .map(|x| U256::from(x.virtual_x))
-        .into_iter()
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    // converts each data.pool_data.virtualY to a float in a vector
-    let reserve_y = data
-        .pool_data
-        .clone()
-        .into_iter()
-        .map(|y| U256::from(y.virtual_y))
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    // converts data.arbitrageur_balances.get(token0.address) to a float in a vector
-    let arb_x = data
-        .arbitrageur_balances
-        .clone()
-        .into_iter()
-        .map(|x| *x.get(&0).unwrap())
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    // converts data.arbitrageur_balances.get(token1.address) to a float in a vector
-    let arb_y = data
-        .arbitrageur_balances
-        .clone()
-        .into_iter()
-        .map(|x| *x.get(&1).unwrap())
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    let data = DataFrame::new(vec![
-        Series::new("portfolio_y_reserves", reserve_y),
-        Series::new("portfolio_x_reserves", reserve_x),
-        Series::new("portfolio_prices", portfolio_prices),
-        Series::new("exchange_prices", exchange_prices),
-        Series::new("arbitrageur_balance_x", arb_x),
-        Series::new("arbitrageur_balance_y", arb_y),
-    ])?;
-    Ok(data)
-}
-
-pub fn plot_reserves(display: Display, data: &SimData) {
-    let title: String = String::from("Reserves");
-
-    let mut curves: Vec<Curve> = Vec::new();
-
-    let reserve_x = data
-        .pool_data
-        .clone()
-        .into_iter()
-        .map(|x| ethers::prelude::types::U256::from(x.virtual_x) / 100)
-        .into_iter()
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    let reserve_y = data
-        .pool_data
-        .clone()
-        .into_iter()
-        .map(|y| ethers::prelude::types::U256::from(y.virtual_y) / 100)
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    let length = data.pool_data.clone().len();
-    let x_coordinates = itertools_num::linspace(0.0, length as f64, length).collect::<Vec<f64>>();
-
-    curves.push(Curve {
-        x_coordinates: x_coordinates.clone(),
-        y_coordinates: reserve_x.clone(),
-        design: CurveDesign {
-            color: Color::Green,
-            color_slot: 1,
-            style: Style::Lines(LineEmphasis::Light),
-        },
-        name: Some(format!("{}", "Rx")),
-    });
-
-    curves.push(Curve {
-        x_coordinates: x_coordinates.clone(),
-        y_coordinates: reserve_y.clone(),
-        design: CurveDesign {
-            color: Color::Blue,
-            color_slot: 1,
-            style: Style::Lines(LineEmphasis::Light),
-        },
-        name: Some(format!("{}", "Ry")),
-    });
-
-    if let Some(last_point) = x_coordinates.last() {
-        let min_y = curves[0]
-            .y_coordinates
-            .iter()
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap();
-        let max_y = curves[0]
-            .y_coordinates
-            .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap();
-
-        println!("min_y: {}", min_y);
-        println!("max_y: {}", max_y);
-
-        let axes = Axes {
-            x_label: String::from("X"),
-            y_label: String::from("Y"), // todo: add better y label
-            bounds: (vec![x_coordinates[0], *last_point], vec![*min_y, *max_y]),
-        };
-
-        // Plot it.
-        transparent_plot(
-            Some(curves),
-            None,
-            axes,
-            title,
-            display,
-            Some(format!("{}/reserves.html", OUTPUT_DIRECTORY.to_string())),
-        );
-    } else {
-        println!("x coords are empty");
-    }
-}
-
-pub fn plot_prices(display: Display, data: &SimData) {
-    let title: String = String::from("Prices");
-
-    let mut curves: Vec<Curve> = Vec::new();
-
-    let portfolio_prices = data
-        .portfolio_prices
-        .clone()
-        .into_iter()
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-
-    let reference_prices = data
-        .reference_prices
-        .clone()
-        .into_iter()
-        .map(wad_to_float)
-        .collect::<Vec<f64>>();
-    let length = data.portfolio_prices.clone().len();
-    let x_coordinates = itertools_num::linspace(0.0, length as f64, length).collect::<Vec<f64>>();
-
-    curves.push(Curve {
-        x_coordinates: x_coordinates.clone(),
-        y_coordinates: portfolio_prices.clone(),
-        design: CurveDesign {
-            color: Color::Green,
-            color_slot: 1,
-            style: Style::Lines(LineEmphasis::Light),
-        },
-        name: Some(format!("{}", "Spot")),
-    });
-
-    curves.push(Curve {
-        x_coordinates: x_coordinates.clone(),
-        y_coordinates: reference_prices.clone(),
-        design: CurveDesign {
-            color: Color::Blue,
-            color_slot: 1,
-            style: Style::Lines(LineEmphasis::Light),
-        },
-        name: Some(format!("{}", "Ref")),
-    });
-
-    if let Some(last_point) = x_coordinates.last() {
-        let min_y = curves
-            .iter()
-            .flat_map(|curve| &curve.y_coordinates)
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap(); // assumes no NANs
-        let max_y = curves
-            .iter()
-            .flat_map(|curve| &curve.y_coordinates)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap(); // assumes no NANs
-
-        println!("min_y: {}", min_y);
-        println!("max_y: {}", max_y);
-
-        let axes = Axes {
-            x_label: String::from("X"),
-            y_label: String::from("Y"), // todo: add better y label
-            bounds: (vec![x_coordinates[0], *last_point], vec![*min_y, *max_y]),
-        };
-
-        // Plot it.
-        transparent_plot(
-            Some(curves),
-            None,
-            axes,
-            title,
-            display,
-            Some(format!("{}/prices.html", OUTPUT_DIRECTORY.to_string())),
-        );
-    } else {
-        println!("x coords are empty");
-    }
 }
 
 pub fn plot_trading_curve(display: Display, curves: Vec<Curve>) {
