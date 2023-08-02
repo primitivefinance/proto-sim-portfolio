@@ -140,6 +140,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         raw_data_container.to_spreadsheet(pool_id),
     );
     plot.stacked_price_plot();
+    plot.lp_pvf_plot();
+    plot.arbitrageur_pvf_plot();
 
     // Simulation finish and log
     manager.shutdown();

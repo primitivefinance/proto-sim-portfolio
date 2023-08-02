@@ -17,7 +17,52 @@ use bindings::{
     shared_types::{Order, PortfolioConfig},
 };
 
+use super::common;
 use crate::math::NormalCurve;
+
+enum SwapDirection {
+    SwapXToY,
+    SwapYToX,
+    None,
+}
+
+fn check_no_arb_bounds(
+    current_price: U256,
+    target_price: U256,
+    fee: U256,
+) -> Option<SwapDirection> {
+    // Check the no-arbitrage bounds
+    let upper_arb_bound = current_price
+        .checked_mul(parse_ether(1.0).unwrap())
+        .unwrap()
+        .checked_div(fee)
+        .unwrap();
+    let lower_arb_bound = current_price
+        .checked_mul(fee)
+        .unwrap()
+        .checked_div(parse_ether(1.0).unwrap())
+        .unwrap();
+
+    println!("Current price: {:?}", current_price);
+    println!("Target price: {:?}", target_price);
+    println!("Upper bound: {:?}", upper_arb_bound);
+    println!("Lower bound: {:?}", lower_arb_bound);
+
+    if (target_price > upper_arb_bound) | (target_price < lower_arb_bound) {
+        // If the prices are outside of the no-arbitrage bounds, then we can arbitrage.
+        let price_difference = current_price.checked_sub(target_price);
+        if price_difference.is_none() {
+            // If this difference is `None`, then the subtraction overflowed so current_price<target_price.
+            Some(SwapDirection::SwapXToY)
+        } else {
+            // If the price difference is still nonzero, then we must swap with price[0]>price[1].
+            Some(SwapDirection::SwapYToX)
+        }
+    } else {
+        // Prices are within the no-arbitrage bounds, so we don't have an arbitrage.
+        Some(SwapDirection::None)
+    }
+}
 
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
@@ -25,7 +70,45 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
     let price_wad = float_to_wad(price);
 
-    println!("Price: {}, price_wad: {}", price, price_wad);
+    // Check if we are within the no-arb bounds.
+    let reported_price = manager
+        .agents
+        .get("admin")
+        .unwrap()
+        .call(portfolio, "getSpotPrice", vec![pool_id.into_token()])
+        .unwrap();
+    let reported_price = portfolio
+        .decode_output("getSpotPrice", unpack_execution(reported_price).unwrap())
+        .unwrap();
+
+    println!(
+        "Reported price: {:?}, Reference price: {:?}",
+        reported_price, price_wad
+    );
+
+    let fee = U256::from(
+        (common::BASIS_POINT_DIVISOR as u128 - common::FEE_BPS as u128 - 100) * 1e18 as u128
+            / common::BASIS_POINT_DIVISOR as u128,
+    );
+    let direction: Option<SwapDirection> = check_no_arb_bounds(reported_price, price_wad, fee);
+
+    match direction {
+        Some(SwapDirection::SwapXToY) => {
+            println!("Swap X to Y");
+        }
+        Some(SwapDirection::SwapYToX) => {
+            println!("Swap Y to X");
+        }
+        Some(SwapDirection::None) => {
+            println!("No swap required.");
+            return Ok(());
+        }
+        None => {
+            println!("No swap required.");
+            return Ok(());
+        }
+    }
+
     let swap_order = get_swap_order(manager, pool_id, price_wad)?;
     println!("Swap order: {:#?}", swap_order);
 
@@ -110,8 +193,6 @@ fn get_swap_order(
         }
     }
 
-    /* let (swap_x_in, order_input_wad_per_liq): (bool, U256) =
-    actor.decode_output("computeArbInput", unpack_execution(result)?)?; */
     println!("there");
 
     println!("swap_x_in: {}", order_input_wad_per_liq);

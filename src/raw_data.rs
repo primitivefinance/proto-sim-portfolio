@@ -184,11 +184,14 @@ impl RawData {
         self.pools.get(&key).unwrap().invariant_wad_sol.clone()
     }
 
-    pub fn get_portfolio_value(&self, key: u64) -> Vec<U256> {
-        self.pools
+    // note: portfolio value is translated to float in the data collection stage
+    // @kinrezc be careful about where you are converting data. in general,
+    // we store raw EVM data in the raw data and do the conversions outside.
+    pub fn get_portfolio_value(&self, key: u64) -> Vec<f64> {
+        self.derived_data
             .get(&key)
             .unwrap()
-            .portfolio_value_wad_sol
+            .pool_portfolio_value
             .clone()
     }
 
@@ -209,7 +212,7 @@ impl RawData {
     }
 
     pub fn get_portfolio_value_float(&self, key: u64) -> Vec<f64> {
-        self.get_portfolio_value(key).vec_wad_to_float()
+        self.get_portfolio_value(key)
     }
 
     /// Balance of arbitrageur's "token0", or x, tokens.
@@ -225,20 +228,11 @@ impl RawData {
 
     /// Gets the portfolio value of the arbitrageur, which is the sum of its value of token reserves.
     pub fn get_arber_portfolio_value_float(&self, pool_id: u64) -> Vec<f64> {
-        // get the arber reserve x and reserve y
-        // sum the reserves
-        // multiply by the exchange price
-        // return the portfolio value
-        let arber_reserve_x = self.get_arber_reserve_x_float();
-        let arber_reserve_y = self.get_arber_reserve_y_float();
-        let exchange_price = self.get_exchange_price_float(pool_id);
-
-        arber_reserve_x
-            .into_iter()
-            .zip(arber_reserve_y)
-            .zip(exchange_price)
-            .map(|((x, y), price)| (x + y) * price)
-            .collect()
+        self.derived_data
+            .get(&pool_id)
+            .unwrap()
+            .arbitrageur_portfolio_value
+            .clone()
     }
 }
 
