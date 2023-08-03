@@ -28,6 +28,13 @@ use bindings::{external_normal_strategy_lib, i_portfolio::*};
 pub static OUTPUT_DIRECTORY: &str = "out_data";
 pub static OUTPUT_FILE_NAME: &str = "results";
 
+/// Defines the output file directory and name for the plots and csv data.
+#[derive(Clone, Parser, Serialize, Deserialize, Debug)]
+pub struct OutputStorage {
+    pub output_path: String,
+    pub output_file_names: String,
+}
+
 /// # Log::Run
 /// Fetches the raw simulation data and records
 /// it to the raw_data container.
@@ -208,13 +215,6 @@ fn get_reference_price(
     let result = admin.call(exchange, "getPrice", recast_address(token).into_tokens())?;
     let reference_price: U256 = exchange.decode_output("getPrice", unpack_execution(result)?)?;
     Ok(reference_price)
-}
-
-/// Defines the output file directory and name for the plots and csv data.
-#[derive(Clone, Parser, Serialize, Deserialize, Debug)]
-pub struct OutputStorage {
-    pub output_path: String,
-    pub output_file_names: String,
 }
 
 pub fn plot_trading_curve(display: Display, curves: Vec<Curve>) {

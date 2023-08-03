@@ -10,13 +10,13 @@ use clap::Parser;
 use ethers::abi::Tokenize;
 use serde::{Deserialize, Serialize};
 use visualize::{design::*, plot::*};
-//use log::plot_trading_curve;
 
 // dynamic imports... generate with build.sh
 
 pub static OUTPUT_DIRECTORY: &str = "out_data";
 pub static OUTPUT_FILE_NAME: &str = "results";
 
+mod analysis;
 mod bisection;
 mod calls;
 mod common;
@@ -75,12 +75,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let token1 = manager.deployed_contracts.get("token1").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
     let mut arb_caller = calls::Caller::new(arbitrageur);
-    arb_caller
+    let _ = arb_caller
         .approve(&token0, recast_address(portfolio.address), 0.0)
-        .res();
-    arb_caller
+        .res()?;
+    let _ = arb_caller
         .approve(&token1, recast_address(portfolio.address), 0.0)
-        .res();
+        .res()?;
 
     // Simulation loop
 
@@ -143,6 +143,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     plot.stacked_price_plot();
     plot.lp_pvf_plot();
     plot.arbitrageur_pvf_plot();
+
+    // Do some analysis on the data.
+    analysis::trading_function_error::main(&manager)?;
 
     // Simulation finish and log
     manager.shutdown();

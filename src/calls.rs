@@ -80,7 +80,7 @@ impl<'a> Caller<'a> {
         contract: &SimulationContract<IsDeployed>,
         function_name: &str,
         args: Vec<ethers::abi::Token>,
-    ) -> &mut Self {
+    ) -> Result<&mut Self, Error> {
         self.set_last_call(Call {
             from: recast_address(self.caller.address()),
             function_name: function_name.to_string(),
@@ -92,8 +92,9 @@ impl<'a> Caller<'a> {
         let result = self.caller.call(contract, function_name, args.clone());
 
         // Wraps the dynamic error into the anyhow error with some context for the last call.
-        let _ = self.handle_error_gracefully(result);
-        self
+        // Return type of this function must be a result so we can propagate the error with `?`.
+        let _ = self.handle_error_gracefully(result)?;
+        Ok(self)
     }
 
     pub fn balance_of(&mut self, token: &SimulationContract<IsDeployed>) -> &mut Self {
@@ -217,7 +218,7 @@ impl<'a> Caller<'a> {
         &mut self,
         portfolio: &SimulationContract<IsDeployed>,
         swap_order: Order,
-    ) -> &mut Self {
+    ) -> Result<&mut Self, Error> {
         let args: SwapCall = SwapCall {
             args: swap_order.clone(),
         };
@@ -235,8 +236,8 @@ impl<'a> Caller<'a> {
             .call(portfolio, "swap", args.clone().into_tokens());
 
         // Wraps the dynamic error into the anyhow error with some context for the last call.
-        let _ = self.handle_error_gracefully(result);
-        self
+        let _ = self.handle_error_gracefully(result)?;
+        Ok(self)
     }
 
     /// Wraps the arbiter call with anyhow's error context, using the last call details.
@@ -249,13 +250,14 @@ impl<'a> Caller<'a> {
                 if res.is_success() {
                     let return_bytes = unpack_execution(res.clone()).unwrap();
 
-                    if return_bytes.len() == 0 {
+                    // todo: do we need this check?
+                    /* if return_bytes.len() == 0 {
                         return Err(anyhow!(
                             "calls.rs: {:?} call returned empty bytes: {:?}",
                             self.last_call,
                             res
                         ));
-                    }
+                    } */
 
                     // Sets the result of the last call.
                     self.set_last_call_result(res.clone());
@@ -272,7 +274,7 @@ impl<'a> Caller<'a> {
             Err(e) => {
                 let msg = e.to_string();
                 return Err(anyhow!(
-                    "calls.rs: failed to call {:?}: {:?}",
+                    "calls.rs: failed to call {:?}: msg: {:?}",
                     self.last_call,
                     msg
                 ));
@@ -295,7 +297,16 @@ impl DecodedReturns for Caller<'_> {
         &self,
         contract: &SimulationContract<IsDeployed>,
     ) -> Result<T, Error> {
-        let result = self.last_call.result.clone().unwrap();
+        let result = self.last_call.result.clone();
+        let result = match result {
+            Some(result) => result,
+            None => {
+                return Err(anyhow!(
+                "calls.rs: {:?} call result is None when attempting to decode, was there a result?",
+                self.last_call
+            ))
+            }
+        };
         let return_bytes = unpack_execution(result.clone())?;
 
         if return_bytes.len() == 0 {
