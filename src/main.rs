@@ -43,6 +43,7 @@ use config::GenerateProcess;
 #[tokio::main]
 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let start_time = std::time::Instant::now();
     // All sim data is collected in the raw data container.
     let mut raw_data_container = raw_data::RawData::new();
     // Simulation config defines the key parameters that are being used to generate data.
@@ -76,10 +77,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arb_caller = calls::Caller::new(arbitrageur);
     arb_caller
         .approve(&token0, recast_address(portfolio.address), 0.0)
-        .unwrap();
+        .res();
     arb_caller
         .approve(&token1, recast_address(portfolio.address), 0.0)
-        .unwrap();
+        .res();
 
     // Simulation loop
 
@@ -146,6 +147,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Simulation finish and log
     manager.shutdown();
     println!("Simulation finished.");
+
+    let elapsed = start_time.elapsed();
+    println!("Simulation took {} seconds to run.", elapsed.as_secs_f64());
 
     Ok(())
 }

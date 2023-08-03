@@ -98,7 +98,7 @@ impl Default for SimConfig {
             timeline: Timeline {
                 seed: 0,
                 timestep: 0.01,
-                num_steps: 500,
+                num_steps: 100,
             },
             economic: Economic {
                 initial_price: 1.0,

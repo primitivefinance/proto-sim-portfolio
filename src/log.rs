@@ -15,7 +15,12 @@ use polars::prelude::*;
 use revm::primitives::Address;
 use visualize::{design::*, plot::*};
 
-use super::{math, raw_data::*, spreadsheetorizer::*};
+use super::{
+    calls::{Caller, DecodedReturns},
+    math,
+    raw_data::*,
+    spreadsheetorizer::*,
+};
 
 // dynamic... generated with build.sh
 use bindings::{external_normal_strategy_lib, i_portfolio::*};
@@ -45,11 +50,15 @@ pub fn run(
     let token0 = manager.deployed_contracts.get("token0").unwrap();
     let token1 = manager.deployed_contracts.get("token1").unwrap();
 
+    // Gracefully handles REVM calls for us.
+    let mut graceful = Caller::new(admin);
+    let mut graceful_arber = Caller::new(arbitrageur);
+
     // 1. Edit the arb balances
     let token_key_0 = "token0".to_string();
     let token_key_1 = "token1".to_string();
-    let arbitrageur_balance_0 = get_balance(admin, token0, arbitrageur.address())?;
-    let arbitrageur_balance_1 = get_balance(admin, token1, arbitrageur.address())?;
+    let arbitrageur_balance_0 = graceful_arber.balance_of(token0).decoded(&token0).unwrap();
+    let arbitrageur_balance_1 = graceful_arber.balance_of(token1).decoded(&token1).unwrap();
     raw_data_container.add_arbitrageur_balance(token_key_0, arbitrageur_balance_0);
     raw_data_container.add_arbitrageur_balance(token_key_1, arbitrageur_balance_1);
 
