@@ -10,9 +10,13 @@ env:
 jobs:
   install_compile:
     name: Foundry install and compile
-    runs-on: ubuntu-latest
     steps:
-      - run: ./build.sh
+    - uses: actions/checkout@v2
+    - name: Run build script
+      run: |
+         chmod +x ./build.sh
+         ./build.sh
+      shell: bash
   build_and_test:
     name: Rust project - latest
     runs-on: ubuntu-latest
