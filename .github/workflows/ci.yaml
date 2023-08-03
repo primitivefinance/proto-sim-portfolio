@@ -10,6 +10,7 @@ env:
 jobs:
   install_compile:
     name: Foundry install and compile
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Run build script
