@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let token0 = manager.deployed_contracts.get("token0").unwrap();
     let token1 = manager.deployed_contracts.get("token1").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-    let arb_caller = calls::Caller::new(arbitrageur);
+    let mut arb_caller = calls::Caller::new(arbitrageur);
     arb_caller
         .approve(&token0, recast_address(portfolio.address), 0.0)
         .unwrap();
