@@ -23,6 +23,7 @@ pub struct Caller<'a> {
 /// Represents a call to a contract.
 /// Provides additional context when calls fail.
 #[derive(Debug, Clone)]
+#[allow(unused)]
 pub struct Call {
     from: Address,
     function_name: String,
@@ -45,6 +46,7 @@ impl Default for Call {
 }
 
 /// Gives the agent access to simple and common calls to the smart contracts.
+#[allow(unused)]
 impl<'a> Caller<'a> {
     /// Creates a new caller!
     pub fn new(caller: &'a dyn Agent) -> Self {
@@ -248,10 +250,10 @@ impl<'a> Caller<'a> {
         match tx_result {
             Ok(res) => {
                 if res.is_success() {
-                    let return_bytes = unpack_execution(res.clone()).unwrap();
+                    /*let return_bytes = unpack_execution(res.clone()).unwrap();
 
                     // todo: do we need this check?
-                    /* if return_bytes.len() == 0 {
+                     if return_bytes.len() == 0 {
                         return Err(anyhow!(
                             "calls.rs: {:?} call returned empty bytes: {:?}",
                             self.last_call,
@@ -330,6 +332,7 @@ impl DecodedReturns for Caller<'_> {
     }
 }
 
+#[cfg(test)]
 mod tests {
 
     use super::*;

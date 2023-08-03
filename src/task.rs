@@ -1,10 +1,10 @@
 use arbiter::{
     agent::Agent,
     manager::SimulationManager,
-    utils::{float_to_wad, recast_address, unpack_execution, wad_to_float},
+    utils::{float_to_wad, recast_address, unpack_execution},
 };
 use ethers::{
-    abi::{AbiDecode, AbiEncode, Tokenizable, Tokenize},
+    abi::{Tokenizable, Tokenize},
     types::*,
     utils::parse_ether,
 };
@@ -13,20 +13,21 @@ use std::error::Error;
 // dynamic, generated with compile.sh
 use bindings::{
     i_portfolio_actions::SwapReturn,
-    portfolio::{PoolsReturn, PortfolioErrors},
+    portfolio::PoolsReturn,
     shared_types::{Order, PortfolioConfig},
 };
 
 use super::calls::{Caller, DecodedReturns};
 use super::common;
-use crate::math::NormalCurve;
 
+#[allow(unused)]
 enum SwapDirection {
     SwapXToY,
     SwapYToX,
     None,
 }
 
+#[allow(unused)]
 fn check_no_arb_bounds(
     current_price: U256,
     target_price: U256,
@@ -87,25 +88,35 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     //);
 
     let fee = U256::from(
-        (common::BASIS_POINT_DIVISOR as u128 - common::FEE_BPS as u128 - 100) * 1e18 as u128
+        (common::BASIS_POINT_DIVISOR as u128 - common::FEE_BPS as u128) * 1e18 as u128
             / common::BASIS_POINT_DIVISOR as u128,
     );
     let direction: Option<SwapDirection> =
         check_no_arb_bounds(current_price_wad, target_price_wad, fee);
 
+    let verbose = std::env::var("VERBOSE");
+
     match direction {
         Some(SwapDirection::SwapXToY) => {
-            println!("Swap X to Y");
+            if verbose.is_ok() {
+                println!("Swap X to Y");
+            }
         }
         Some(SwapDirection::SwapYToX) => {
-            println!("Swap Y to X");
+            if verbose.is_ok() {
+                println!("Swap Y to X");
+            }
         }
         Some(SwapDirection::None) => {
-            println!("No swap required.");
+            if verbose.is_ok() {
+                println!("No swap required.");
+            }
             return Ok(());
         }
         None => {
-            println!("No swap required.");
+            if verbose.is_ok() {
+                println!("No swap required.");
+            }
             return Ok(());
         }
     }
@@ -114,7 +125,6 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     //println!("Swap order: {:#?}", swap_order);
 
     if swap_order.input == 0 {
-        println!("No swap order required.");
         return Ok(());
     }
 

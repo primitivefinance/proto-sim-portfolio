@@ -74,6 +74,7 @@ impl Default for PoolSeries {
 
 /// Implements the raw data type with
 /// methods to easily handle the data.
+#[allow(unused)]
 impl RawData {
     pub fn new() -> Self {
         RawData {

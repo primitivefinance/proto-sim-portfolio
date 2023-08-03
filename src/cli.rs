@@ -78,7 +78,7 @@ pub async fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Err
             );
         }
         Some(Commands::Sim {}) => {
-            println!("\n {}", "Running simulation!".blue());
+            println!("\n{}", "Starting simulation!".blue());
 
             // Run the simulation.
             match sim::main().await {

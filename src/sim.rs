@@ -1,5 +1,6 @@
 /// Runs a simulation using the config.
 use arbiter::{agent::AgentType, manager::SimulationManager, utils::recast_address};
+use colored::*;
 use visualize;
 
 pub static OUTPUT_DIRECTORY: &str = "out_data";
@@ -75,8 +76,11 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Logs initial simulation state.
     log::run(&manager, &mut raw_data_container, pool_id)?;
 
+    println!("{}", "Running...".purple().magenta());
     for (i, price) in prices.iter().skip(1).enumerate() {
-        println!("====== Sim step: {}, price: {} =========", i, price);
+        if std::env::var("VERBOSE").is_ok() {
+            println!("====== Sim step: {}, price: {} =========", i, price);
+        }
 
         // Run's the arbitrageur's task given the next desired tx.
         task::run(&manager, *price, pool_id)?;

@@ -24,6 +24,7 @@ struct Input(SolidityInput);
 
 /// Output format of the data.
 #[derive(Clone, Debug)]
+#[allow(unused)]
 struct Output {
     pub output_sol: f64,
     pub output_rs: f64,
@@ -31,6 +32,7 @@ struct Output {
 
 /// Each data point.
 #[derive(Clone, Debug)]
+#[allow(unused)]
 struct DataPoint {
     pub input: Input,
     pub output: Output,
@@ -38,6 +40,7 @@ struct DataPoint {
 
 /// Collection of data.
 #[derive(Clone, Debug)]
+#[allow(unused)]
 struct Results {
     pub data: Vec<DataPoint>,
 }

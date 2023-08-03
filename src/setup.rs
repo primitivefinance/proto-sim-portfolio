@@ -71,12 +71,7 @@ pub fn run(
         .into_tokens(),
     )?;
 
-    println!("Entrypoint encoded: {:?}", encoded);
-    let start_call = admin.call(entrypoint_callable, "start", vec![Token::Bytes(encoded)])?;
-    println!(
-        "Entrypoint start call result: {:?}",
-        unpack_execution(start_call)
-    );
+    let _ = admin.call(entrypoint_callable, "start", vec![Token::Bytes(encoded)])?;
 
     let exchange = admin.call(entrypoint_callable, "exchange", vec![])?;
     let exchange_address: H160 =
@@ -164,15 +159,6 @@ pub fn run(
         .deployed_contracts
         .insert("actor".to_string(), actor_contract);
 
-    let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-    let get_pair_nonce = admin.call(portfolio, "getPairNonce", vec![])?;
-    let get_pair_nonce_result: u64 =
-        portfolio.decode_output("getPairNonce", unpack_execution(get_pair_nonce)?)?;
-    println!(
-        "portfolio get_pair_nonce result: {:?}",
-        get_pair_nonce_result
-    );
-
     deploy_external_normal_strategy_lib(manager)?;
 
     setup_agent(manager);
@@ -209,11 +195,6 @@ pub async fn init_arbitrageur(
     prices[0] = revm::primitives::U256::from(initial_prices[0]).into();
     prices[1] = revm::primitives::U256::from(initial_prices[0]).into();
     drop(prices);
-
-    println!(
-        "Initialized arbitrageur with price: {:?}",
-        initial_prices[0]
-    );
 }
 
 pub fn init_pool(manager: &SimulationManager) -> Result<u64, Box<dyn std::error::Error>> {
@@ -246,7 +227,6 @@ pub fn init_pool(manager: &SimulationManager) -> Result<u64, Box<dyn std::error:
     let pool_id: u64 = portfolio
         .decode_output("createPool", unpack_execution(result).unwrap())
         .unwrap();
-    println!("initialized pool with id: {:?}", pool_id);
 
     Ok(pool_id)
 }
@@ -282,9 +262,6 @@ fn build_create_pool_call(manager: &SimulationManager) -> CreatePoolCall {
             unpack_execution(computed_args).unwrap(),
         )
         .unwrap();
-
-    println!("initial x: {:?}", computed_args.initial_x);
-    println!("initial y: {:?}", computed_args.initial_y);
 
     CreatePoolCall {
         pair_id: 1_u32,                             // pairId
@@ -328,8 +305,6 @@ pub fn allocate_liquidity(
     if !result.is_success() {
         panic!("allocate for pool id {} failed {:#?}", pool_id, result);
     }
-
-    println!("allocated liquidity to pool: {:?}", pool_id);
 
     Ok(())
 }

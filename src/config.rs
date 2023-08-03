@@ -17,6 +17,7 @@ use serde_derive::Deserialize;
 /// * `pool_time_remaining_years_f` - Normal strategy pool's time remaining seconds parameter. Note: not supported yet. (f64)
 /// * `pool_is_perpetual` - Normal strategy pool's is perpetual parameter. Sets tau to be constant. (bool)
 #[derive(Clone, Debug, Deserialize)]
+#[allow(unused)] // todo: use
 pub struct Economic {
     pool_volatility_f: f64,
     pool_strike_price_f: f64,

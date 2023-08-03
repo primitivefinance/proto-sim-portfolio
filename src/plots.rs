@@ -2,11 +2,14 @@
 use polars::prelude::*;
 use visualize::{design::*, plot::*};
 
+/// Uses a Plot Display and DataFrame (i.e. csv) to make plots of the simulation data.
 pub struct Plot {
     display: Display,
     data: DataFrame,
 }
 
+/// Implements utilites for plotting the csv data output from simulations.
+#[allow(unused)]
 impl Plot {
     /// constructor
     pub fn new(display: Display, data: DataFrame) -> Self {
@@ -173,7 +176,6 @@ impl Plot {
     pub fn stacked_price_plot(&self) {
         // get the reported and ref prices into a vector
         let prices = self.prices();
-        println!("prices: {:?}", prices);
 
         // make a stacked line plot for each of the prices
         self.stacked_line_plot(
@@ -206,7 +208,6 @@ impl Plot {
     pub fn stacked_portfolio_value_plot(&self) {
         // get the LP pvf and arber pvf
         let pvfs = self.pvfs();
-        println!("pvfs: {:?}", pvfs);
 
         // make a stacked line plot for each of the pvfs
         self.stacked_line_plot(
@@ -232,7 +233,6 @@ impl Plot {
     pub fn lp_pvf_plot(&self) {
         // get the LP pvf and arber pvf
         let pvfs = self.pvfs();
-        println!("pvfs: {:?}", pvfs);
 
         // make a stacked line plot for each of the pvfs
         self.stacked_line_plot(
@@ -250,7 +250,6 @@ impl Plot {
     pub fn arbitrageur_pvf_plot(&self) {
         // get the LP pvf and arber pvf
         let pvfs = self.pvfs();
-        println!("pvfs: {:?}", pvfs);
 
         // make a stacked line plot for each of the pvfs
         self.stacked_line_plot(
