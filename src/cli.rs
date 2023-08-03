@@ -1,12 +1,13 @@
+/// Command line interface for the sim.
 use super::analysis;
 use anyhow::anyhow;
 use arbiter::manager::SimulationManager;
-/// Command line interface for the sim.
 use clap::{Parser, Subcommand};
 use colored::*;
 
 use super::sim;
 
+/// CLI arguments.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -14,6 +15,9 @@ struct Cli {
     command: Option<Commands>,
 }
 
+/// CLI commands that can be run.
+/// `analyze` - Runs an analysis specified with --name and --subtype.
+/// `sim` - Runs the simulation.
 #[derive(Subcommand)]
 enum Commands {
     /// Runs an analysis.
