@@ -8,6 +8,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  install_compile:
+    name: Foundry install and compile
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./build.sh
   build_and_test:
     name: Rust project - latest
     runs-on: ubuntu-latest
