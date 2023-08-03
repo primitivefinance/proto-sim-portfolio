@@ -2,14 +2,12 @@
 use arbiter::{agent::AgentType, manager::SimulationManager, utils::recast_address};
 use visualize;
 
-// dynamic imports... generate with build.sh
-
 pub static OUTPUT_DIRECTORY: &str = "out_data";
 pub static OUTPUT_FILE_NAME: &str = "results";
 
 // useful traits
 use crate::calls;
-use crate::config::{GenerateProcess, SimConfig};
+use crate::config::SimConfig;
 use crate::log;
 use crate::plots;
 use crate::raw_data;
@@ -24,7 +22,7 @@ use crate::task;
 /// - The `out_data` directory does not exist.
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Simulation config defines the key parameters that are being used to generate data.
-    let sim_config = SimConfig::default();
+    let sim_config = SimConfig::new().unwrap_or(SimConfig::default());
     // Create the evm god.
     let mut manager = SimulationManager::new();
     // Deploys initial contracts and agents.
@@ -32,7 +30,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // All sim data is collected in the raw data container.
     let mut raw_data_container = raw_data::RawData::new();
     // Underlying price process that the sim will run on.
-    let substrate = sim_config.generate();
+    let substrate = sim_config.process;
     // Get the price vector to use for the simulation.
     let prices = substrate.generate_price_path().1;
 
@@ -98,15 +96,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = format!(
         "{}/{}_pool_id_{}.csv",
         output.output_path, output.output_file_names, pool_id
-    );
-
-    println!(
-        "arb value {:?}",
-        raw_data_container
-            .derived_data
-            .get(&pool_id)
-            .unwrap()
-            .arbitrageur_portfolio_value
     );
 
     // Write the sim data to a file.

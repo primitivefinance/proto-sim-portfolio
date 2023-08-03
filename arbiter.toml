@@ -1,18 +1,20 @@
-# NOTE: The order here matters slightly! 
-# Be careful when editing.
+# Settings
+# ========
+# Structs are defined in `src/config.rs`, which loads this config and deserializes it into the structs.
+# Important! All fields must be present in the config file, even if they are not used.
 
-# Number of price processes to simulate.
-price_paths = 10
-# Number of workers to use for parallelization.
-worker_limit = 32
-# File output parameters struct.
-output_path = "output"
-output_file_names = "uniswap"
+# Struct for pool parameters which defines its economics.
+# # Fields
+# * `volatility` - Volatility of the pool as a float percentage. (f64)
+# * `strike_price` - Strike price of the pool as a float. (f64)
+# * `time_remaining_years` - Time remaining in years as a float. (f64)
+# * `is_perpetual` - Boolean indicating if the pool is perpetual. (bool)
+[economic]
+pool_volatility_f = 0.01
+pool_strike_price_f = 1.0
+pool_time_remaining_years_f = 1.0
+pool_is_perpetual = false
 
-# Volatility sweeping parameters.
-volatility_low = 0.01
-volatility_high = 0.1
-number_of_volatility_steps = 10
 
 # Struct for all price processes init parameters.
 # A price process is a stochastic process that describes the evolution of a price_process.
@@ -23,21 +25,23 @@ number_of_volatility_steps = 10
 # * `initial_price` - Initial price of the simulation. (f64)
 # * `seed` - Seed for testing. (u64)
 # * `process_type` - Type of price process. (PriceProcessType)
+[process]
 timestep = 0.0027397
 timescale = "trades"
-num_steps = 1000
+num_steps = 50
 initial_price = 1
 seed = 887
 
-[process_type]
+[process.process_type]
 price_process_type = "OU"
+
 
 # Ornstein-Uhlenbeck process parameters struct.
 # # Fields
 # * `volatility` - Volatility of the underlying asset. (f64)
 # * `mean_reversion_speed` - Mean reversion speed of the underlying asset. (f64)
 # * `mean_price` - Mean price of the underlying asset. (f64)
-[process_type.price_process]
+[process.process_type.price_process]
 volatility = 0.01
 mean_reversion_speed = 50.0
 mean_price = 1.0
@@ -47,6 +51,6 @@ mean_price = 1.0
 # * `drift` - Price drift of the underlying asset. (f64)
 # * `volatility` - Volatility of the underlying asset. (f64)
 # e.g., 
-# [process_type.price_process]
+# [process.process_type.price_process]
 # drift = 0.1
 # volatility = 0.07

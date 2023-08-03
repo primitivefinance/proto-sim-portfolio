@@ -94,7 +94,27 @@ pub async fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Err
                 "seconds to run.".green(),
             );
         }
-        None => println!("No subcommand was used"),
+        None => {
+            println!("\n {}", "Running simulation!".blue());
+
+            // Run the simulation.
+            match sim::main().await {
+                Ok(_) => {
+                    println!("{}", "Simulation complete!".green());
+                }
+                Err(e) => {
+                    return Err(anyhow!("Error running simulation: {}", e));
+                }
+            }
+
+            let elapsed = start_time.elapsed();
+            println!(
+                "{} {} {}",
+                "Simulation took".green(),
+                elapsed.as_secs_f64().to_string().purple(),
+                "seconds to run.".green(),
+            );
+        }
     }
 
     Ok(())

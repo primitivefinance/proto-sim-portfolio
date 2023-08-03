@@ -17,6 +17,7 @@ use bindings::{
     shared_types::{Order, PortfolioConfig},
 };
 
+use super::calls::{Caller, DecodedReturns};
 use super::common;
 use crate::math::NormalCurve;
 
@@ -67,30 +68,30 @@ fn check_no_arb_bounds(
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
 pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), Box<dyn Error>> {
+    // Get the instances we need.
+    let admin = manager.agents.get("admin").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-    let price_wad = float_to_wad(price);
+    let mut caller = Caller::new(admin);
+
+    // Collect the key variables to check for arbitrage.
+    let target_price_wad = float_to_wad(price);
 
     // Check if we are within the no-arb bounds.
-    let reported_price = manager
-        .agents
-        .get("admin")
-        .unwrap()
-        .call(portfolio, "getSpotPrice", vec![pool_id.into_token()])
-        .unwrap();
-    let reported_price = portfolio
-        .decode_output("getSpotPrice", unpack_execution(reported_price).unwrap())
-        .unwrap();
+    let current_price_wad: U256 = caller
+        .call(portfolio, "getSpotPrice", pool_id.into_tokens())?
+        .decoded(portfolio)?;
 
     //println!(
     //    "Reported price: {:?}, Reference price: {:?}",
-    //    reported_price, price_wad
+    //    current_price_wad, target_price_wad
     //);
 
     let fee = U256::from(
         (common::BASIS_POINT_DIVISOR as u128 - common::FEE_BPS as u128 - 100) * 1e18 as u128
             / common::BASIS_POINT_DIVISOR as u128,
     );
-    let direction: Option<SwapDirection> = check_no_arb_bounds(reported_price, price_wad, fee);
+    let direction: Option<SwapDirection> =
+        check_no_arb_bounds(current_price_wad, target_price_wad, fee);
 
     match direction {
         Some(SwapDirection::SwapXToY) => {
@@ -109,7 +110,7 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
         }
     }
 
-    let swap_order = get_swap_order(manager, pool_id, price_wad)?;
+    let swap_order = get_swap_order(manager, pool_id, target_price_wad)?;
     //println!("Swap order: {:#?}", swap_order);
 
     if swap_order.input == 0 {
@@ -158,11 +159,11 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     Ok(())
 }
 
-/// Computes the swap order required to move the portfolio pool's reported price to `price_wad`.
+/// Computes the swap order required to move the portfolio pool's reported price to `target_price_wad`.
 fn get_swap_order(
     manager: &SimulationManager,
     pool_id: u64,
-    price_wad: ethers::prelude::U256,
+    target_price_wad: ethers::prelude::U256,
 ) -> Result<Order, Box<dyn std::error::Error>> {
     //println!("Pool id: {}", pool_id);
     let arbitrageur = manager.agents.get("arbitrageur").unwrap();
@@ -173,7 +174,7 @@ fn get_swap_order(
     let result = arbitrageur.call(
         actor,
         "computeArbInput",
-        (recast_address(portfolio.address), pool_id, price_wad).into_tokens(),
+        (recast_address(portfolio.address), pool_id, target_price_wad).into_tokens(),
     )?;
 
     let mut swap_x_in: bool = false;
