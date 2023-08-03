@@ -1,6 +1,11 @@
 /// Analyzes the trading function solidity against the rust implementation.
 use crate::calls::{Caller, DecodedReturns};
 use crate::math::NormalCurve as RustInput;
+use itertools_num::linspace;
+use visualize::{
+    design::{Color, CurveDesign, DisplayMode},
+    plot::{transparent_plot, Axes, Curve, Display},
+};
 
 use anyhow::anyhow;
 use arbiter::{
@@ -37,6 +42,8 @@ struct Results {
 }
 
 static STEP: f64 = 0.001;
+static DIR: &str = "./out_data";
+static FILE: &str = "trading_function_error";
 
 /// Plots the trading function error.
 pub fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Error> {
@@ -152,6 +159,65 @@ pub fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Error> {
     );
 
     // Plot the data.
+    let len = 1.0 / STEP;
+    let curve_rs = Curve {
+        x_coordinates: linspace(0.0, len, len as usize).collect::<Vec<f64>>(),
+        y_coordinates: rs.clone(),
+        design: CurveDesign {
+            color: Color::Green,
+            color_slot: 1,
+            style: visualize::design::Style::Lines(visualize::design::LineEmphasis::Light),
+        },
+        name: Some("rust".to_string()),
+    };
+
+    let curve_sol = Curve {
+        x_coordinates: linspace(0.0, len, len as usize).collect::<Vec<f64>>(),
+        y_coordinates: sol.clone(),
+        design: CurveDesign {
+            color: Color::Blue,
+            color_slot: 1,
+            style: visualize::design::Style::Lines(visualize::design::LineEmphasis::Light),
+        },
+        name: Some("solidity".to_string()),
+    };
+
+    let curves: Vec<Curve> = vec![curve_rs, curve_sol];
+
+    let y_coordinates_flat = curves
+        .iter()
+        .flat_map(|curve| curve.y_coordinates.clone())
+        .collect::<Vec<f64>>();
+
+    let min_y = y_coordinates_flat
+        .iter()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    let max_y = y_coordinates_flat
+        .iter()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+
+    let axes = Axes {
+        x_label: String::from("X"),
+        y_label: String::from("Y"), // todo: add better y label
+        bounds: (vec![0.0, 1.0], vec![*min_y, *max_y]),
+    };
+
+    let display = Display {
+        transparent: false,
+        mode: DisplayMode::Light,
+        show: false,
+    };
+
+    transparent_plot(
+        Some(curves),
+        None,
+        axes,
+        "Trading Function Error".to_string(),
+        display,
+        Some(format!("{}/{}.html", DIR.to_string(), FILE.to_string())),
+    );
 
     Ok(())
 }
