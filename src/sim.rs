@@ -1,58 +1,34 @@
-use arbiter::environment::contract::{IsDeployed, SimulationContract};
-use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
-use arbiter::utils::wad_to_float;
-use arbiter::{
-    agent::{Agent, AgentType},
-    manager::SimulationManager,
-    utils::recast_address,
-};
-use clap::Parser;
-use ethers::abi::Tokenize;
-use serde::{Deserialize, Serialize};
-use visualize::{design::*, plot::*};
+/// Runs a simulation using the config.
+use arbiter::{agent::AgentType, manager::SimulationManager, utils::recast_address};
+use visualize;
 
 // dynamic imports... generate with build.sh
 
 pub static OUTPUT_DIRECTORY: &str = "out_data";
 pub static OUTPUT_FILE_NAME: &str = "results";
 
-mod analysis;
-mod bisection;
-mod calls;
-mod cli;
-mod common;
-mod config;
-mod log;
-mod math;
-mod plots;
-mod raw_data;
-mod setup;
-mod sim;
-mod spreadsheetorizer;
-mod step;
-mod task;
-
-use log::*;
-use plots::*;
-use spreadsheetorizer::*;
-
 // useful traits
-use config::GenerateProcess;
+use crate::calls;
+use crate::config::{GenerateProcess, SimConfig};
+use crate::log;
+use crate::plots;
+use crate::raw_data;
+use crate::setup;
+use crate::spreadsheetorizer::{DiskWritable, Spreadsheet};
+use crate::step;
+use crate::task;
 
-#[tokio::main]
-
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// Runs the simulation using the config and logs the data to `out_data`.
+///
+/// # Errors
+/// - The `out_data` directory does not exist.
+pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Simulation config defines the key parameters that are being used to generate data.
-    let sim_config = config::SimConfig::default();
+    let sim_config = SimConfig::default();
     // Create the evm god.
     let mut manager = SimulationManager::new();
     // Deploys initial contracts and agents.
     setup::run(&mut manager, &sim_config)?;
-
-    // Grab the cli commands.
-    let _ = cli::main(&manager).await?;
-
-    /* let start_time = std::time::Instant::now();
     // All sim data is collected in the raw data container.
     let mut raw_data_container = raw_data::RawData::new();
     // Underlying price process that the sim will run on.
@@ -114,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         step::run(&manager, *price)?;
     }
 
-    let output = OutputStorage {
+    let output = log::OutputStorage {
         output_path: String::from(OUTPUT_DIRECTORY),
         output_file_names: String::from(OUTPUT_FILE_NAME),
     };
@@ -137,10 +113,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     raw_data_container.write_to_disk(&path, pool_id)?;
 
     // Write some plots from the data.
-    let plot = Plot::new(
-        Display {
+    let plot = plots::Plot::new(
+        visualize::plot::Display {
             transparent: false,
-            mode: DisplayMode::Light,
+            mode: visualize::design::DisplayMode::Light,
             show: false,
         },
         raw_data_container.to_spreadsheet(pool_id),
@@ -151,10 +127,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Simulation finish and log
     manager.shutdown();
-    println!("Simulation finished.");
-
-    let elapsed = start_time.elapsed();
-    println!("Simulation took {} seconds to run.", elapsed.as_secs_f64()); */
 
     Ok(())
 }

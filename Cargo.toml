@@ -22,3 +22,5 @@ visualize = {git = "https://github.com/primitivefinance/visualization-rs.git", b
 itertools-num = "0.1.3"
 statrs = "0.16.0"
 anyhow = "1.0.72"
+colored = "2.0.4"
+chrono = "0.4.26"

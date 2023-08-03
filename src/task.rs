@@ -43,10 +43,10 @@ fn check_no_arb_bounds(
         .checked_div(parse_ether(1.0).unwrap())
         .unwrap();
 
-    println!("Current price: {:?}", current_price);
-    println!("Target price: {:?}", target_price);
-    println!("Upper bound: {:?}", upper_arb_bound);
-    println!("Lower bound: {:?}", lower_arb_bound);
+    //println!("Current price: {:?}", current_price);
+    //println!("Target price: {:?}", target_price);
+    //println!("Upper bound: {:?}", upper_arb_bound);
+    //println!("Lower bound: {:?}", lower_arb_bound);
 
     if (target_price > upper_arb_bound) | (target_price < lower_arb_bound) {
         // If the prices are outside of the no-arbitrage bounds, then we can arbitrage.
@@ -81,10 +81,10 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
         .decode_output("getSpotPrice", unpack_execution(reported_price).unwrap())
         .unwrap();
 
-    println!(
-        "Reported price: {:?}, Reference price: {:?}",
-        reported_price, price_wad
-    );
+    //println!(
+    //    "Reported price: {:?}, Reference price: {:?}",
+    //    reported_price, price_wad
+    //);
 
     let fee = U256::from(
         (common::BASIS_POINT_DIVISOR as u128 - common::FEE_BPS as u128 - 100) * 1e18 as u128
@@ -110,7 +110,7 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     }
 
     let swap_order = get_swap_order(manager, pool_id, price_wad)?;
-    println!("Swap order: {:#?}", swap_order);
+    //println!("Swap order: {:#?}", swap_order);
 
     if swap_order.input == 0 {
         println!("No swap order required.");
@@ -131,18 +131,18 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
         match unpack_execution(swap_call_result) {
             Ok(unpacked) => {
                 let swap_return: SwapReturn = portfolio.decode_output("swap", unpacked)?;
-                println!(
-                    "Swap return: poolId {}, input {}, output {}, starting output: {}",
-                    swap_return.pool_id, swap_return.input, swap_return.output, swap_order.output
-                );
+                //println!(
+                //    "Swap return: poolId {}, input {}, output {}, starting output: {}",
+                //    swap_return.pool_id, swap_return.input, swap_return.output, swap_order.output
+                //);
 
                 swap_success = true;
             }
             Err(e) => {
                 // This `InvalidInvariant` can pop up in multiple ways. Best to check for this.
-                println!("Invalid invariant error: {:?}", e);
+                //println!("Invalid invariant error: {:?}", e);
                 let value = e.output.unwrap();
-                println!("Value: {:?}", value.clone().encode_hex());
+                //println!("Value: {:?}", value.clone().encode_hex());
 
                 // reduce output by a small amount until we are successful in swapping
                 order.output = order
@@ -164,12 +164,12 @@ fn get_swap_order(
     pool_id: u64,
     price_wad: ethers::prelude::U256,
 ) -> Result<Order, Box<dyn std::error::Error>> {
-    println!("Pool id: {}", pool_id);
+    //println!("Pool id: {}", pool_id);
     let arbitrageur = manager.agents.get("arbitrageur").unwrap();
     let actor = manager.deployed_contracts.get("actor").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
 
-    println!("here");
+    //println!("here");
     let result = arbitrageur.call(
         actor,
         "computeArbInput",
@@ -183,22 +183,22 @@ fn get_swap_order(
         Ok(unpacked) => {
             (swap_x_in, order_input_wad_per_liq) =
                 actor.decode_output("computeArbInput", unpacked)?;
-            println!(
-                "decoded computeArbInput: swapInX {:?} order input {:?}",
-                swap_x_in, order_input_wad_per_liq
-            );
+            //println!(
+            //    "decoded computeArbInput: swapInX {:?} order input {:?}",
+            //    swap_x_in, order_input_wad_per_liq
+            //);
         }
         Err(e) => {
             println!("Error: {:?}", e);
         }
     }
 
-    println!("there");
+    //println!("there");
 
-    println!("swap_x_in: {}", order_input_wad_per_liq);
+    //println!("swap_x_in: {}", order_input_wad_per_liq);
 
-    println!("swap_x_in: {}", swap_x_in);
-    println!("order_input_wad_per_liq: {}", order_input_wad_per_liq);
+    //println!("swap_x_in: {}", swap_x_in);
+    //println!("order_input_wad_per_liq: {}", order_input_wad_per_liq);
 
     let order_output_wad_per_liq =
         get_amount_out(manager, pool_id, swap_x_in, order_input_wad_per_liq).unwrap();
@@ -258,8 +258,8 @@ pub fn get_amount_out(
         .decode_output("getConfig", unpack_execution(config.unwrap()).unwrap())
         .unwrap();
 
-    println!("config: {:#?}", config_return);
-    println!("pool: {:#?}", pool);
+    //println!("config: {:#?}", config_return);
+    //println!("pool: {:#?}", pool);
 
     /*
     let _rust_curve = NormalCurve::new_from_portfolio(&pool, &config_return);

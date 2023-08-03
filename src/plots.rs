@@ -265,3 +265,23 @@ impl Plot {
         );
     }
 }
+
+/// Gets the minimum and maximum values from a list of coordinates.
+pub fn get_coordinate_bounds(coords_list: Vec<Vec<f64>>) -> (f64, f64) {
+    let flat = coords_list
+        .iter()
+        .flat_map(|coord| coord.clone())
+        .collect::<Vec<f64>>();
+
+    let min = flat
+        .iter()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+
+    let max = flat
+        .iter()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+
+    (*min, *max)
+}
