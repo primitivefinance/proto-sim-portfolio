@@ -263,6 +263,39 @@ impl Plot {
             "arbitrageur_pvf",
         );
     }
+
+    pub fn portfolio_volume_plot(&self) {
+        let portfolio_volume = self.data.column("portfolio_volume").unwrap();
+
+        self.stacked_line_plot(
+            vec![portfolio_volume
+                .f64()
+                .expect("error converting reported price to f64")
+                .into_iter()
+                .filter_map(|opt_f| opt_f)
+                .into_iter()
+                .collect::<Vec<f64>>()],
+            "portfolio_volume",
+        );
+    }
+
+    pub fn portfolio_volume_cumulative_plot(&self) {
+        let portfolio_volume = self.data.column("portfolio_volume").unwrap();
+
+        let mut cumulative_volume = Vec::new();
+        let mut sum = 0.0;
+        for volume in portfolio_volume
+            .f64()
+            .expect("error converting reported price to f64")
+            .into_iter()
+            .filter_map(|opt_f| opt_f)
+        {
+            sum += volume;
+            cumulative_volume.push(sum);
+        }
+
+        self.stacked_line_plot(vec![cumulative_volume], "portfolio_volume_cumulative");
+    }
 }
 
 /// Gets the minimum and maximum values from a list of coordinates.

@@ -19,15 +19,18 @@ use bindings::{i_portfolio::*, normal_strategy::ConfigsReturn};
 /// * arbitrageur_balances_wad - Stores the arbitrageur's balances in wad format.
 /// * exchange_prices_wad - Stores the series exchange prices in wad format, indexed by the pool id.
 /// * pools - Stores the series pool data, indexed by the pool id.
+#[derive(Clone)]
 pub struct RawData {
     pub keys: Vec<u64>,
     pub arbitrageur_balances_wad: HashMap<String, Vec<U256>>,
+    pub portfolio_volume_wad: HashMap<u64, Vec<U256>>,
     pub exchange_prices_wad: HashMap<u64, Vec<U256>>,
     pub pools: HashMap<u64, PoolSeries>,
     pub derived_data: HashMap<u64, DerivedData>,
     pub configs: HashMap<u64, PoolConfig>,
 }
 
+#[derive(Clone)]
 pub struct DerivedData {
     pub arbitrageur_portfolio_value: Vec<f64>,
     pub pool_portfolio_value: Vec<f64>,
@@ -54,6 +57,7 @@ pub type PoolConfig = ConfigsReturn;
 /// * `reported_price_wad_sol` - Reported price of the pool, in wad format.
 /// * `invariant_wad_sol` - Invariant value of the pool, in wad format.
 /// * `portfolio_value_wad_sol` - Portfolio value function is the sum of the value of tokens, in wad format.
+#[derive(Clone)]
 pub struct PoolSeries {
     pub pool_data: Vec<PoolsReturn>,
     pub reported_price_wad_sol: Vec<U256>,
@@ -80,6 +84,7 @@ impl RawData {
         RawData {
             keys: Vec::new(),
             arbitrageur_balances_wad: HashMap::new(),
+            portfolio_volume_wad: HashMap::new(),
             exchange_prices_wad: HashMap::new(),
             pools: HashMap::new(),
             derived_data: HashMap::new(),
@@ -93,6 +98,16 @@ impl RawData {
 
     pub fn add_key(&mut self, key: u64) {
         self.keys.push(key);
+    }
+
+    // todo: right now we store this value in task.rs.
+    // Therefore, we miss it in the initial log run.
+    // so we need to initialize it with a single 0 value.
+    pub fn add_portfolio_volume_wad(&mut self, key: u64, volume: U256) {
+        self.portfolio_volume_wad
+            .entry(key)
+            .or_insert(vec![U256::zero()])
+            .push(volume);
     }
 
     pub fn add_arbitrageur_balance(&mut self, key: String, balance: U256) {
@@ -155,6 +170,14 @@ impl RawData {
             .or_insert_with(DerivedData::default)
             .pool_portfolio_value
             .push(value);
+    }
+
+    pub fn get_portfolio_volume_wad(&self, key: u64) -> Vec<U256> {
+        self.portfolio_volume_wad.get(&key).unwrap().clone()
+    }
+
+    pub fn get_portfolio_volume_float(&self, key: u64) -> Vec<f64> {
+        self.get_portfolio_volume_wad(key).vec_wad_to_float()
     }
 
     pub fn get_arbitrageur_balance(&self, key: &str) -> Vec<U256> {

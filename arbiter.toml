@@ -10,11 +10,11 @@
 # * `time_remaining_years` - Time remaining in years as a float. (f64)
 # * `is_perpetual` - Boolean indicating if the pool is perpetual. (bool)
 [economic]
-pool_volatility_f = 0.01
-pool_strike_price_f = 1.0
+pool_volatility_f = 1.0
+pool_strike_price_f = 2250.0
 pool_time_remaining_years_f = 1.0
-pool_is_perpetual = false
-pool_fee_basis_points = 10
+pool_is_perpetual = true
+pool_fee_basis_points = 30
 pool_priority_fee_basis_points = 0
 
 
@@ -28,14 +28,14 @@ pool_priority_fee_basis_points = 0
 # * `seed` - Seed for testing. (u64)
 # * `process_type` - Type of price process. (PriceProcessType)
 [process]
-timestep = 0.0027397
+timestep = 0.000114155 # 1 hour in years
 timescale = "trades"
-num_steps = 1000
-initial_price = 1
+num_steps = 730 # 1 month in hours, so we have timesteps of 1 hour for 1 month.
+initial_price = 1750.0
 seed = 887
 
 [process.process_type]
-price_process_type = "OU"
+price_process_type = "GBM"
 
 
 # Ornstein-Uhlenbeck process parameters struct.
@@ -43,16 +43,16 @@ price_process_type = "OU"
 # * `volatility` - Volatility of the underlying asset. (f64)
 # * `mean_reversion_speed` - Mean reversion speed of the underlying asset. (f64)
 # * `mean_price` - Mean price of the underlying asset. (f64)
-[process.process_type.price_process]
-volatility = 0.01
-mean_reversion_speed = 50.0
-mean_price = 1.0
+#[process.process_type.price_process]
+#volatility = 0.50
+#mean_reversion_speed = 50.0
+#mean_price = 1.0
 
 # Geometric Brownian Motion process parameters struct.
 # # Fields
 # * `drift` - Price drift of the underlying asset. (f64)
 # * `volatility` - Volatility of the underlying asset. (f64)
 # e.g., 
-# [process.process_type.price_process]
-# drift = 0.1
-# volatility = 0.07
+[process.process_type.price_process]
+drift = 0.1
+volatility = 0.35

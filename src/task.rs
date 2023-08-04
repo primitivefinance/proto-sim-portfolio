@@ -16,6 +16,7 @@ use bindings::{i_portfolio_actions::SwapReturn, portfolio::PoolsReturn, shared_t
 
 use super::calls::{Caller, DecodedReturns};
 use super::common;
+use super::raw_data::RawData;
 
 #[allow(unused)]
 enum SwapDirection {
@@ -60,7 +61,12 @@ fn check_no_arb_bounds(
 
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
-pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), anyhow::Error> {
+pub fn run(
+    manager: &SimulationManager,
+    data: &mut RawData,
+    price: f64,
+    pool_id: u64,
+) -> Result<(), anyhow::Error> {
     let verbose = std::env::var("VERBOSE");
 
     // Get the instances we need.
@@ -88,14 +94,17 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     let pool_state = caller.call(portfolio, "pools", vec![pool_id.into_token()])?;
     let pool_state: PoolsReturn = pool_state.decoded(portfolio)?;
 
-    // Doubles the pool's fee to get the arb bounds for the arbitrageur.
-    let fee = U256::from(
-        (common::BASIS_POINT_DIVISOR as u128 - (pool_state.fee_basis_points as u128 * 2_u128))
+    // Arbitrageur bounds given the fee gamma
+    let fee_gamma = U256::from(
+        (common::BASIS_POINT_DIVISOR as u128 - (pool_state.fee_basis_points as u128 * 5 / 4))
             * 1e18 as u128
             / common::BASIS_POINT_DIVISOR as u128,
     );
     let direction: Option<SwapDirection> =
-        check_no_arb_bounds(current_price_wad, target_price_wad, fee);
+        check_no_arb_bounds(current_price_wad, target_price_wad, fee_gamma);
+
+    // Volume is initially 0, and only set if a portfolio swap is successful.
+    let mut volume = U256::zero();
 
     match direction {
         Some(SwapDirection::SwapXToY) => {
@@ -112,12 +121,14 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
             if verbose.is_ok() {
                 println!("No swap required.");
             }
+            data.add_portfolio_volume_wad(pool_id, volume);
             return Ok(());
         }
         None => {
             if verbose.is_ok() {
                 println!("No swap required.");
             }
+            data.add_portfolio_volume_wad(pool_id, volume);
             return Ok(());
         }
     }
@@ -167,6 +178,12 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
                 }
 
                 swap_success = true;
+
+                if order.sell_asset {
+                    volume = U256::from(swap_order.input);
+                } else {
+                    volume = U256::from(swap_order.output);
+                }
             }
             Err(_) => {
                 // reduce output by a small amount until we are successful in swapping
@@ -179,6 +196,8 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
             }
         };
     }
+
+    data.add_portfolio_volume_wad(pool_id, volume);
 
     if swap_success {
         // Do the swap on the liquid exchange.
@@ -215,22 +234,35 @@ fn get_swap_order(
     manager: &SimulationManager,
     pool_id: u64,
     target_price_wad: ethers::prelude::U256,
-) -> Result<Order, Box<dyn std::error::Error>> {
+) -> Result<Order, anyhow::Error> {
     //println!("Pool id: {}", pool_id);
     let arbitrageur = manager.agents.get("arbitrageur").unwrap();
     let actor = manager.deployed_contracts.get("actor").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
+    let mut exec = Caller::new(arbitrageur);
 
     //println!("here");
-    let result = arbitrageur.call(
-        actor,
-        "computeArbInput",
-        (recast_address(portfolio.address), pool_id, target_price_wad).into_tokens(),
-    )?;
+    let (swap_x_in, order_input_wad_per_liq) = exec
+        .call(
+            actor,
+            "computeArbInput",
+            (recast_address(portfolio.address), pool_id, target_price_wad).into_tokens(),
+        )?
+        .decoded(actor)?;
+
+    /*  let result = match result {
+        Ok(result) => result,
+        Err(e) => {
+            return Err(anyhow!(
+                "task.rs: Error on computeArbInput call result: {:#?}",
+                e
+            ));
+        }
+    };
+
 
     let mut swap_x_in: bool = false;
     let mut order_input_wad_per_liq: U256 = U256::from(0);
-
     match unpack_execution(result) {
         Ok(unpacked) => {
             (swap_x_in, order_input_wad_per_liq) =
@@ -241,9 +273,12 @@ fn get_swap_order(
             //);
         }
         Err(e) => {
-            println!("Error: {:?}", e);
+            return Err(anyhow!(
+                "task.rs: Error on unpacking computeArbInput: {:#?}",
+                e
+            ));
         }
-    }
+    } */
 
     //println!("there");
 

@@ -24,6 +24,7 @@ impl Spreadsheet for RawData {
             "arb_reserve_x" => self.get_arber_reserve_x_float(),
             "arb_reserve_y" => self.get_arber_reserve_y_float(),
             "arb_pvf" => self.get_arber_portfolio_value_float(pool_id),
+            "portfolio_volume" => self.get_portfolio_volume_float(pool_id),
         )
         .unwrap()
     }

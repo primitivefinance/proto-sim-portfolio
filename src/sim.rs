@@ -92,7 +92,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Run's the arbitrageur's task given the next desired tx.
-        task::run(&manager, *price, pool_id)?;
+        task::run(&manager, &mut raw_data_container, *price, pool_id)?;
 
         // Logs the simulation data.
         log::run(&manager, &mut raw_data_container, pool_id)?;
@@ -126,6 +126,8 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     plot.stacked_price_plot();
     plot.lp_pvf_plot();
     plot.arbitrageur_pvf_plot();
+    plot.portfolio_volume_plot();
+    plot.portfolio_volume_cumulative_plot();
 
     // Simulation finish and log
     manager.shutdown();
