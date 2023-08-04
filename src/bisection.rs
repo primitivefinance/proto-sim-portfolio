@@ -17,6 +17,7 @@ pub struct Bisection {
 /// midpoint as the new upper bound. If it is less than the root, then we set the midpoint
 /// as the new lower bound. We then repeat this process until we find the root, or until
 /// we reach the maximum number of iterations.
+#[allow(unused)]
 impl Bisection {
     /// Creates a new bisection object.
     pub fn new(lower: f64, upper: f64, epsilon: f64, max_iter: f64) -> Self {

@@ -55,6 +55,7 @@ pub struct NormalCurve {
 /// floating point math libraries, which introduce some error.
 /// Therefore, these functions are nice to use as sanity checks,
 /// to validate the behavior is consistent with fixed point counterparts.
+#[allow(unused)]
 impl NormalCurve {
     /// constructor
     pub fn new(
@@ -187,6 +188,8 @@ impl NormalCurve {
         let mut copy = self.clone();
 
         while x < 1.0 {
+            let _ = y; // silence! shh!!
+
             copy.reserve_x_per_wad = x;
             y = self.approximate_y_given_x_floating();
             points.push((x, y));

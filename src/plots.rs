@@ -2,11 +2,14 @@
 use polars::prelude::*;
 use visualize::{design::*, plot::*};
 
+/// Uses a Plot Display and DataFrame (i.e. csv) to make plots of the simulation data.
 pub struct Plot {
     display: Display,
     data: DataFrame,
 }
 
+/// Implements utilites for plotting the csv data output from simulations.
+#[allow(unused)]
 impl Plot {
     /// constructor
     pub fn new(display: Display, data: DataFrame) -> Self {
@@ -28,6 +31,13 @@ impl Plot {
         let ref_price = self.data.column("ref_price").unwrap();
 
         vec![reported_price.clone(), ref_price.clone()]
+    }
+
+    pub fn pvfs(&self) -> Vec<Series> {
+        let pvf = self.data.column("pvf").unwrap();
+        let arb_pvf = self.data.column("arb_pvf").unwrap();
+
+        vec![pvf.clone(), arb_pvf.clone()]
     }
 
     /// Gets the data container for every point on a line to be plotted.
@@ -131,7 +141,7 @@ impl Plot {
     /// Makes a line plot for each given series of y coordinates.
     /// # Arguments
     /// * `y_coords_vec` - For each line, a series a y coordinates. Each element in the root vector should have the same length.
-    pub fn stacked_line_plot(&self, y_coords_vec: Vec<Vec<f64>>) {
+    pub fn stacked_line_plot(&self, y_coords_vec: Vec<Vec<f64>>, title: &str) {
         let length = y_coords_vec[0].len();
         // Equally spaced x coordinates.
         let x_coordinates =
@@ -159,36 +169,118 @@ impl Plot {
             })
             .collect::<Vec<Curve>>();
 
-        self.plot("./out_data", "line_plot", "line plot", curves);
+        self.plot("./out_data", title, title, curves);
     }
 
     /// Plots the reported price and reference prices on two lines on the same graph.
     pub fn stacked_price_plot(&self) {
         // get the reported and ref prices into a vector
         let prices = self.prices();
-        println!("prices: {:?}", prices);
 
         // make a stacked line plot for each of the prices
-        self.stacked_line_plot(vec![
-            prices[0]
-                .f64()
-                .expect("error converting reported price to f64")
-                .into_iter()
-                .filter_map(|opt_f| opt_f)
-                .into_iter()
-                .collect::<Vec<f64>>(),
-            prices[1]
-                .f64()
-                .expect("error converting ref price to f64")
-                .into_iter()
-                .filter_map(|opt_f| opt_f)
-                .into_iter()
-                .collect::<Vec<f64>>(),
-        ]);
+        self.stacked_line_plot(
+            vec![
+                prices[0]
+                    .f64()
+                    .expect("error converting reported price to f64")
+                    .into_iter()
+                    .filter_map(|opt_f| opt_f)
+                    .into_iter()
+                    .collect::<Vec<f64>>(),
+                prices[1]
+                    .f64()
+                    .expect("error converting ref price to f64")
+                    .into_iter()
+                    .filter_map(|opt_f| opt_f)
+                    .into_iter()
+                    .collect::<Vec<f64>>(),
+            ],
+            "prices",
+        );
     }
 
     /// Plots the x and y reserves of a given pool data series on two lines on the same graph.
     pub fn stacked_reserves_plot(&self) {
         todo!()
     }
+
+    /// Plots the LP potfolio value and the arbitrageur's portfolio value on two lines on the same graph.
+    pub fn stacked_portfolio_value_plot(&self) {
+        // get the LP pvf and arber pvf
+        let pvfs = self.pvfs();
+
+        // make a stacked line plot for each of the pvfs
+        self.stacked_line_plot(
+            vec![
+                pvfs[0]
+                    .f64()
+                    .expect("error converting reported price to f64")
+                    .into_iter()
+                    .filter_map(|opt_f| opt_f)
+                    .into_iter()
+                    .collect::<Vec<f64>>(),
+                pvfs[1]
+                    .f64()
+                    .expect("error converting ref price to f64")
+                    .into_iter()
+                    .filter_map(|opt_f| opt_f)
+                    .into_iter()
+                    .collect::<Vec<f64>>(),
+            ],
+            "portfolios",
+        );
+    }
+    pub fn lp_pvf_plot(&self) {
+        // get the LP pvf and arber pvf
+        let pvfs = self.pvfs();
+
+        // make a stacked line plot for each of the pvfs
+        self.stacked_line_plot(
+            vec![pvfs[0]
+                .f64()
+                .expect("error converting reported price to f64")
+                .into_iter()
+                .filter_map(|opt_f| opt_f)
+                .into_iter()
+                .collect::<Vec<f64>>()],
+            "lp_pvf",
+        );
+    }
+
+    pub fn arbitrageur_pvf_plot(&self) {
+        // get the LP pvf and arber pvf
+        let pvfs = self.pvfs();
+
+        // make a stacked line plot for each of the pvfs
+        self.stacked_line_plot(
+            vec![pvfs[1]
+                .f64()
+                .expect("error converting ref price to f64")
+                .into_iter()
+                .filter_map(|opt_f| opt_f)
+                .into_iter()
+                .collect::<Vec<f64>>()],
+            "arbitrageur_pvf",
+        );
+    }
+}
+
+/// Gets the minimum and maximum values from a list of coordinates.
+pub fn get_coordinate_bounds(coords_list: Vec<Vec<f64>>) -> (f64, f64) {
+    let flat = coords_list
+        .iter()
+        .flat_map(|coord| coord.clone())
+        .collect::<Vec<f64>>();
+
+    let min = flat
+        .iter()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+
+    let max = flat
+        .iter()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+
+    (*min, *max)
 }
