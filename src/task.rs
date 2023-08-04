@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use arbiter::{
     agent::Agent,
     manager::SimulationManager,
@@ -41,11 +42,6 @@ fn check_no_arb_bounds(
         .checked_div(parse_ether(1.0).unwrap())
         .unwrap();
 
-    //println!("Current price: {:?}", current_price);
-    //println!("Target price: {:?}", target_price);
-    //println!("Upper bound: {:?}", upper_arb_bound);
-    //println!("Lower bound: {:?}", lower_arb_bound);
-
     if (target_price > upper_arb_bound) | (target_price < lower_arb_bound) {
         // If the prices are outside of the no-arbitrage bounds, then we can arbitrage.
         let price_difference = current_price.checked_sub(target_price);
@@ -64,8 +60,11 @@ fn check_no_arb_bounds(
 
 /// Runs the tasks for each actor in the environment
 /// Requires the arbitrageur's next desired transaction
-pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), Box<dyn Error>> {
+pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), anyhow::Error> {
+    let verbose = std::env::var("VERBOSE");
+
     // Get the instances we need.
+    let arber = manager.agents.get("arbitrageur").unwrap();
     let admin = manager.agents.get("admin").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
     let mut caller = Caller::new(admin);
@@ -78,19 +77,25 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
         .call(portfolio, "getSpotPrice", pool_id.into_tokens())?
         .decoded(portfolio)?;
 
-    //println!(
-    //    "Reported price: {:?}, Reference price: {:?}",
-    //    current_price_wad, target_price_wad
-    //);
+    if verbose.is_ok() {
+        println!(
+            "Reported price: {:#?}, Reference price: {:#?}",
+            current_price_wad, target_price_wad
+        );
+    }
 
+    // todo: get pool fee from actual pool...
+    let pool_state = caller.call(portfolio, "pools", vec![pool_id.into_token()])?;
+    let pool_state: PoolsReturn = pool_state.decoded(portfolio)?;
+
+    // Doubles the pool's fee to get the arb bounds for the arbitrageur.
     let fee = U256::from(
-        (common::BASIS_POINT_DIVISOR as u128 - common::FEE_BPS as u128) * 1e18 as u128
+        (common::BASIS_POINT_DIVISOR as u128 - (pool_state.fee_basis_points as u128 * 2_u128))
+            * 1e18 as u128
             / common::BASIS_POINT_DIVISOR as u128,
     );
     let direction: Option<SwapDirection> =
         check_no_arb_bounds(current_price_wad, target_price_wad, fee);
-
-    let verbose = std::env::var("VERBOSE");
 
     match direction {
         Some(SwapDirection::SwapXToY) => {
@@ -117,7 +122,15 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
         }
     }
 
-    let swap_order = get_swap_order(manager, pool_id, target_price_wad)?;
+    // Fetches the swap order required to move the portfolio pool's reported price to `target_price_wad`.
+    let swap_order = get_swap_order(manager, pool_id, target_price_wad);
+    let swap_order = match swap_order {
+        Ok(order) => order,
+        Err(e) => {
+            return Err(anyhow!("task.rs: Error on getting swap order: {:#?}", e));
+        }
+    };
+
     if verbose.is_ok() {
         println!("Swap order: {:#?}", swap_order);
     }
@@ -127,15 +140,18 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     }
 
     let mut swap_success = false;
-
     let mut order = swap_order.clone();
+    let mut max_iter = 100; // limit to 100 tries.
+    while !swap_success && max_iter > 0 {
+        max_iter -= 1;
 
-    while !swap_success {
-        let swap_call_result = manager.agents.get("arbitrageur").unwrap().call(
-            portfolio,
-            "swap",
-            vec![order.clone().into_token()],
-        )?;
+        let swap_call_result = arber.call(portfolio, "swap", vec![order.clone().into_token()]);
+        let swap_call_result = match swap_call_result {
+            Ok(result) => result,
+            Err(e) => {
+                return Err(anyhow!("task.rs: Error on swap call: {:#?}", e));
+            }
+        };
 
         match unpack_execution(swap_call_result) {
             Ok(unpacked) => {
@@ -162,6 +178,33 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
                     .unwrap();
             }
         };
+    }
+
+    if swap_success {
+        // Do the swap on the liquid exchange.
+        let exchange = manager.deployed_contracts.get("exchange").unwrap();
+        let token0 = manager.deployed_contracts.get("token0").unwrap();
+        let token1 = manager.deployed_contracts.get("token1").unwrap();
+
+        let mut exec = Caller::new(arber);
+
+        let trade_call_result: bool = exec
+            .call(
+                exchange,
+                "trade",
+                (
+                    recast_address(token0.address),
+                    recast_address(token1.address),
+                    !order.sell_asset, // opposite of sell asset
+                    order.output,      // swap in the output amount of the portfolio swap
+                )
+                    .into_tokens(),
+            )?
+            .decoded(exchange)?;
+
+        if !trade_call_result {
+            return Err(anyhow!("Trade failed."));
+        }
     }
 
     Ok(())

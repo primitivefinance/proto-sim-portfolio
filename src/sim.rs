@@ -31,7 +31,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // All sim data is collected in the raw data container.
     let mut raw_data_container = raw_data::RawData::new();
     // Underlying price process that the sim will run on.
-    let substrate = sim_config.process;
+    let substrate = &sim_config.process;
     // Get the price vector to use for the simulation.
     let prices = substrate.generate_price_path().1;
 
@@ -51,21 +51,30 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     setup::init_arbitrageur(arbitrageur, prices.clone()).await;
 
     // Approve portfolio to spend arbitrageur's tokens.
+    let exchange = manager.deployed_contracts.get("exchange").unwrap();
     let token0 = manager.deployed_contracts.get("token0").unwrap();
     let token1 = manager.deployed_contracts.get("token1").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
+
+    // Arbitrageur approvals...
     let mut arb_caller = calls::Caller::new(arbitrageur);
-    let _ = arb_caller
+    arb_caller
         .approve(&token0, recast_address(portfolio.address), 0.0)
         .res()?;
-    let _ = arb_caller
+    arb_caller
         .approve(&token1, recast_address(portfolio.address), 0.0)
+        .res()?;
+    arb_caller
+        .approve(&token0, recast_address(exchange.address), 0.0)
+        .res()?;
+    arb_caller
+        .approve(&token1, recast_address(exchange.address), 0.0)
         .res()?;
 
     // Simulation loop
 
     // Initialize the pool.
-    let pool_id = setup::init_pool(&manager)?;
+    let pool_id = setup::init_pool(&manager, &sim_config)?;
 
     // Add liquidity to the pool
     setup::allocate_liquidity(&manager, pool_id)?;

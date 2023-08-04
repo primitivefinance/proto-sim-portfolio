@@ -14,6 +14,8 @@ pool_volatility_f = 0.01
 pool_strike_price_f = 1.0
 pool_time_remaining_years_f = 1.0
 pool_is_perpetual = false
+pool_fee_basis_points = 10
+pool_priority_fee_basis_points = 0
 
 
 # Struct for all price processes init parameters.
@@ -28,7 +30,7 @@ pool_is_perpetual = false
 [process]
 timestep = 0.0027397
 timescale = "trades"
-num_steps = 50
+num_steps = 1000
 initial_price = 1
 seed = 887
 

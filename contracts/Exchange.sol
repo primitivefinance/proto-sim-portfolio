@@ -39,16 +39,23 @@ contract Exchange {
         address quote,
         bool sellAsset,
         uint256 amountIn
-    ) public {
+    ) public returns (bool) {
         uint256 price = _prices[asset]; // selling asset ? price = quote / asset : price = asset / quote
 
-        uint256 unit = 10 ** IERC20(sellAsset ? quote : asset).decimals();
+        uint256 decimals = IERC20(sellAsset ? quote : asset).decimals();
+        uint256 scalar = 10 ** (18 - decimals);
 
-        uint256 amountOut =
-            sellAsset ? amountIn * price / unit : amountIn * 1e18 / price; // Cancel numerator units out.
+        uint256 amountOut;
+        if (sellAsset) {
+            amountOut = amountIn * price / 1e18 / scalar;
+        } else {
+            amountOut = amountIn * scalar * 1e18 / price;
+        }
 
         _debit(sellAsset ? asset : quote, amountIn);
         _credit(sellAsset ? quote : asset, amountOut);
+
+        return true;
     }
 
     function _debit(address token, uint256 amount) internal {

@@ -15,12 +15,14 @@ use ethers::{
 };
 use revm::primitives::B160;
 
+use super::calls;
 use super::common;
-use super::config;
+use crate::calls::DecodedReturns;
+use crate::config::SimConfig;
 
 pub fn run(
     manager: &mut SimulationManager,
-    config: &config::SimConfig,
+    config: &SimConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let _ = config; // todo: use config vars for create pool.
 
@@ -102,45 +104,22 @@ pub fn run(
     let actor_address_bytes = B160::from(actor_address.as_fixed_bytes());
     let actor_contract = SimulationContract::bind(actor::ACTOR_ABI.clone(), actor_address_bytes);
 
-    admin
-        .call(
-            &token0_contract,
-            "approve",
-            (recast_address(portfolio_contract.address), U256::MAX).into_tokens(),
-        )
-        .unwrap();
+    let mut exec = calls::Caller::new(admin);
 
-    admin
-        .call(
-            &token1_contract,
-            "approve",
-            (recast_address(portfolio_contract.address), U256::MAX).into_tokens(),
-        )
-        .unwrap();
+    let approve_args = (recast_address(portfolio_contract.address), U256::MAX).into_tokens();
+    let mint_args = (
+        recast_address(B160::from_low_u64_be(common::ARBITRAGEUR_ADDRESS_BASE)),
+        float_to_wad(50.0),
+    )
+        .into_tokens();
+    let mint_exchange_args = (exchange_address, float_to_wad(88888888888888.0)).into_tokens();
 
-    admin
-        .call(
-            &token0_contract,
-            "mint",
-            (
-                recast_address(B160::from_low_u64_be(common::ARBITRAGEUR_ADDRESS_BASE)),
-                float_to_wad(4809.0),
-            )
-                .into_tokens(),
-        )
-        .unwrap();
-
-    admin
-        .call(
-            &token1_contract,
-            "mint",
-            (
-                recast_address(B160::from_low_u64_be(common::ARBITRAGEUR_ADDRESS_BASE)),
-                float_to_wad(4809.0),
-            )
-                .into_tokens(),
-        )
-        .unwrap();
+    exec.call(&token0_contract, "approve", approve_args.clone())?;
+    exec.call(&token1_contract, "approve", approve_args.clone())?;
+    exec.call(&token0_contract, "mint", mint_args.clone())?;
+    exec.call(&token1_contract, "mint", mint_args.clone())?;
+    exec.call(&token0_contract, "mint", mint_exchange_args.clone())?;
+    exec.call(&token1_contract, "mint", mint_exchange_args.clone())?;
 
     manager
         .deployed_contracts
@@ -199,11 +178,14 @@ pub async fn init_arbitrageur(
     drop(prices);
 }
 
-pub fn init_pool(manager: &SimulationManager) -> Result<u64, Box<dyn std::error::Error>> {
+pub fn init_pool(
+    manager: &SimulationManager,
+    config: &SimConfig,
+) -> Result<u64, Box<dyn std::error::Error>> {
     let admin = manager.agents.get("admin").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
 
-    let create_pool_args: CreatePoolCall = build_create_pool_call(manager);
+    let create_pool_args: CreatePoolCall = build_create_pool_call(manager, config)?;
     let result = admin
         .call(
             portfolio,
@@ -233,80 +215,65 @@ pub fn init_pool(manager: &SimulationManager) -> Result<u64, Box<dyn std::error:
     Ok(pool_id)
 }
 
-fn build_create_pool_call(manager: &SimulationManager) -> CreatePoolCall {
+fn build_create_pool_call(
+    manager: &SimulationManager,
+    config: &SimConfig,
+) -> Result<CreatePoolCall, anyhow::Error> {
     let admin = manager.agents.get("admin").unwrap();
     let actor = manager.deployed_contracts.get("actor").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
 
-    let computed_args = admin
-        .call(
-            actor,
-            "getCreatePoolComputedArgs",
-            (
-                recast_address(portfolio.address),
-                float_to_wad(1.0),                  // strike price wad
-                U256::from(common::VOLATILITY_BPS), // vol bps
-                U256::from(31556953_u32),           // 1 year duration in seconds
-                true,                               // is perpetual
-                float_to_wad(1.0),                  // initial price wad
-            )
-                .into_tokens(),
-        )
-        .expect("getCreatePoolComputedArgs failed");
+    let mut exec = calls::Caller::new(admin);
 
-    if !computed_args.is_success() {
-        panic!("getCreatePoolComputedArgs failed");
-    }
+    let config_copy = config.clone();
+    let args = (
+        recast_address(portfolio.address),
+        float_to_wad(config_copy.economic.pool_strike_price_f), // strike price wad
+        (config_copy.economic.pool_volatility_f * common::BASIS_POINT_DIVISOR as f64) as u32, // vol bps
+        (config_copy.economic.pool_time_remaining_years_f * common::SECONDS_PER_YEAR as f64) as u32, // 1 year duration in seconds
+        config_copy.economic.pool_is_perpetual, // is perpetual
+        float_to_wad(config_copy.process.initial_price), // initial price wad
+    )
+        .into_tokens();
+    let create_args: bindings::actor::GetCreatePoolComputedArgsReturn = exec
+        .call(actor, "getCreatePoolComputedArgs", args)?
+        .decoded(actor)?;
 
-    let computed_args: bindings::actor::GetCreatePoolComputedArgsReturn = actor
-        .decode_output(
-            "getCreatePoolComputedArgs",
-            unpack_execution(computed_args).unwrap(),
-        )
-        .unwrap();
-
-    CreatePoolCall {
-        pair_id: 1_u32,                             // pairId
-        reserve_x_per_wad: computed_args.initial_x, // reserveXPerWad
-        reserve_y_per_wad: computed_args.initial_y, // reserveYPerWad
-        fee_basis_points: common::FEE_BPS,          // feeBips
-        priority_fee_basis_points: 0_u16,           // priorityFeeBips
-        controller: H160::zero(),                   // controller,
-        strategy: H160::zero(),                     // address(0) == default strategy
-        strategy_args: computed_args.strategy_data, // strategyArgs
-    }
+    Ok(CreatePoolCall {
+        pair_id: 1_u32, // pairId todo: fix this if running multiple pairs?
+        reserve_x_per_wad: create_args.initial_x, // reserveXPerWad
+        reserve_y_per_wad: create_args.initial_y, // reserveYPerWad
+        fee_basis_points: config_copy.economic.pool_fee_basis_points, // feeBips
+        priority_fee_basis_points: config_copy.economic.pool_priority_fee_basis_points, // priorityFeeBips
+        controller: H160::zero(),                 // controller,
+        strategy: H160::zero(),                   // address(0) == default strategy
+        strategy_args: create_args.strategy_data, // strategyArgs
+    })
 }
 
-pub fn allocate_liquidity(
-    manager: &SimulationManager,
-    pool_id: u64,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn allocate_liquidity(manager: &SimulationManager, pool_id: u64) -> Result<(), anyhow::Error> {
     let admin = manager.agents.get("admin").unwrap();
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
 
     let recipient = recast_address(admin.address());
+    let mut exec = calls::Caller::new(admin);
 
     // note: this can fail automatically if block.timestamp is 0.
     // note: this can fail if maxDeltaAsset/maxDeltaQuote is larger than uint128
-    let result = admin
-        .call(
-            portfolio,
-            "allocate",
-            (
-                false, // use max
-                recipient,
-                pool_id,                   // poolId
-                float_to_wad(100.0),       // 100e18 liquidity
-                U128::MAX / U128::from(2), // tries scaling to wad by multiplying beyond word size, div to avoid.
-                U128::MAX / U128::from(2),
-            )
-                .into_tokens(),
+    exec.call(
+        portfolio,
+        "allocate",
+        (
+            false, // use max
+            recipient,
+            pool_id,                   // poolId
+            float_to_wad(1.0),         // 100e18 liquidity
+            U128::MAX / U128::from(2), // tries scaling to wad by multiplying beyond word size, div to avoid.
+            U128::MAX / U128::from(2),
         )
-        .unwrap();
-
-    if !result.is_success() {
-        panic!("allocate for pool id {} failed {:#?}", pool_id, result);
-    }
+            .into_tokens(),
+    )?
+    .res()?;
 
     Ok(())
 }

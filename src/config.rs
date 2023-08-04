@@ -1,3 +1,4 @@
+use super::common;
 /// Configuration for the simulation.
 /// Includes all the key parameters used to generate
 /// the price process, the agent parameters,
@@ -20,10 +21,12 @@ use serde_derive::Deserialize;
 #[derive(Clone, Debug, Deserialize)]
 #[allow(unused)] // todo: use
 pub struct Economic {
-    pool_volatility_f: f64,
-    pool_strike_price_f: f64,
-    pool_time_remaining_years_f: f64,
-    pool_is_perpetual: bool,
+    pub pool_volatility_f: f64,
+    pub pool_strike_price_f: f64,
+    pub pool_time_remaining_years_f: f64,
+    pub pool_is_perpetual: bool,
+    pub pool_fee_basis_points: u16,
+    pub pool_priority_fee_basis_points: u16,
 }
 
 /// # SimConfig
@@ -83,10 +86,12 @@ impl Default for SimConfig {
             },
 
             economic: Economic {
-                pool_volatility_f: 0.1,
+                pool_volatility_f: common::VOLATILITY_F,
                 pool_strike_price_f: 1.0,
                 pool_time_remaining_years_f: 1.0,
                 pool_is_perpetual: true,
+                pool_fee_basis_points: common::FEE_BPS,
+                pool_priority_fee_basis_points: 0,
             },
         }
     }
