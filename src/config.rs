@@ -3,6 +3,7 @@
 /// the price process, the agent parameters,
 /// and the pool parameters.
 use arbiter::stochastic::price_process::{PriceProcess, PriceProcessType, OU};
+use colored::*;
 use config::{Config, ConfigError};
 use serde_derive::Deserialize;
 
@@ -45,9 +46,16 @@ impl SimConfig {
     }
 }
 
-pub fn main() {
+pub fn main() -> SimConfig {
     let settings = SimConfig::new().unwrap();
-    println!("Settings: {:?}", settings);
+    println!(
+        "{}\n{}\n{:#?}\n{}",
+        "Configuration:".bright_yellow(),
+        "------------------".bright_yellow(),
+        settings,
+        "------------------".bright_yellow()
+    );
+    settings
 }
 
 /// # Default Parameterization

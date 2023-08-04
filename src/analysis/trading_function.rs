@@ -9,6 +9,8 @@ use visualize::{
 };
 
 use super::TradingFunctionSubtype;
+use crate::config;
+use crate::setup;
 use anyhow::anyhow;
 use arbiter::{
     manager::SimulationManager,
@@ -16,7 +18,7 @@ use arbiter::{
 };
 use bindings::external_normal_strategy_lib::NormalCurve as SolidityInput;
 use chrono::Local;
-use ethers::abi::{Tokenizable, Tokenize};
+use ethers::abi::Tokenizable;
 
 /// Input for the data.
 #[derive(Clone, Debug)]
@@ -50,10 +52,23 @@ static DIR: &str = "./out_data";
 static FILE: &str = "trading_function_analysis";
 
 /// Plots the trading function error.
-pub fn main(
-    manager: &SimulationManager,
-    subtype: TradingFunctionSubtype,
-) -> anyhow::Result<(), anyhow::Error> {
+pub fn main(subtype: TradingFunctionSubtype) -> anyhow::Result<(), anyhow::Error> {
+    // Simulation config defines the key parameters that are being used to generate data.
+    let sim_config = config::main();
+    // Create the evm god.
+    let mut manager = SimulationManager::new();
+    // Deploys initial contracts and agents.
+    let init = setup::run(&mut manager, &sim_config);
+    match init {
+        Ok(_) => {}
+        Err(e) => {
+            return Err(anyhow!(
+                "Error in analyze trading function, setup.rs step: {}",
+                e
+            ));
+        }
+    }
+
     let timestamp = Local::now();
 
     let library = manager.deployed_contracts.get("library").unwrap();
@@ -150,19 +165,12 @@ pub fn main(
         });
     }
 
-    // Print the data.
-    println!(
-        "data.output: {:?}",
-        data.into_iter()
-            .map(|x| x.output.output_sol.clone())
-            .collect::<Vec<f64>>()
-    );
-
     // Plot the data.
     let len = rs.len();
-    let x_coordinates = itertools_num::linspace(0.0, len as f64, len).collect::<Vec<f64>>();
+    let x_coordinates = linspace(0.0, len as f64, len).collect::<Vec<f64>>();
 
     let mut last_x = 0.0;
+    let _ = last_x; // does nothing. Just to silence the compiler warning.
     if let Some(last_point) = x_coordinates.clone().last() {
         last_x = *last_point;
     } else {
@@ -264,7 +272,6 @@ pub fn main(
                 )),
             );
         }
-        _ => return Err(anyhow!("Invalid subtype.")),
     }
 
     Ok(())

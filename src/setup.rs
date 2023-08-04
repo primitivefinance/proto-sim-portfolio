@@ -22,6 +22,8 @@ pub fn run(
     manager: &mut SimulationManager,
     config: &config::SimConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let _ = config; // todo: use config vars for create pool.
+
     let admin = manager.agents.get("admin").unwrap();
 
     // Deploy weth

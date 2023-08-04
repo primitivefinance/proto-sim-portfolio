@@ -1,7 +1,6 @@
 /// Command line interface for the sim.
 use super::analysis;
 use anyhow::anyhow;
-use arbiter::manager::SimulationManager;
 use clap::{Parser, Subcommand};
 use colored::*;
 
@@ -34,14 +33,14 @@ enum Commands {
 }
 
 /// Handles the cli commands argument parsing to run the sim or a specific analysis.
-pub async fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Error> {
+pub async fn main() -> anyhow::Result<(), anyhow::Error> {
     let cli = Cli::parse();
 
     let start_time = std::time::Instant::now();
 
     match &cli.command {
         Some(Commands::Analyze { name, subtype }) => {
-            println!("\n {}", "Running analysis!".blue());
+            println!("\n{}", "Running analysis!".blue());
 
             match name.as_str() {
                 "trading_function" => {
@@ -61,7 +60,7 @@ pub async fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Err
                         }
                     }
 
-                    analysis::trading_function::main(manager, subtype_to_run)?;
+                    analysis::trading_function::main(subtype_to_run)?;
                 }
                 _ => {
                     return Err(anyhow!("Analysis not found: {}", name));
@@ -71,10 +70,10 @@ pub async fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Err
             // Print the time to run.
             let elapsed = start_time.elapsed();
             println!(
-                "\n {} {} {}",
-                "Trading Function Error Analysis took".green(),
-                elapsed.as_secs_f64().to_string().purple(),
-                "seconds to run.".green(),
+                "\n{} {} {}",
+                "Trading Function Error Analysis took".bright_cyan(),
+                elapsed.as_secs_f64().to_string().purple().bold(),
+                "seconds to run.".bright_cyan(),
             );
         }
         Some(Commands::Sim {}) => {
@@ -93,13 +92,13 @@ pub async fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Err
             let elapsed = start_time.elapsed();
             println!(
                 "{} {} {}",
-                "Simulation took".green(),
-                elapsed.as_secs_f64().to_string().purple(),
-                "seconds to run.".green(),
+                "Simulation took".bright_black(),
+                elapsed.as_secs_f64().to_string().purple().bold(),
+                "seconds to run.".bright_black(),
             );
         }
         None => {
-            println!("\n {}", "Running simulation!".blue());
+            println!("\n{}", "Running simulation!".blue());
 
             // Run the simulation.
             match sim::main().await {
@@ -114,9 +113,9 @@ pub async fn main(manager: &SimulationManager) -> anyhow::Result<(), anyhow::Err
             let elapsed = start_time.elapsed();
             println!(
                 "{} {} {}",
-                "Simulation took".green(),
-                elapsed.as_secs_f64().to_string().purple(),
-                "seconds to run.".green(),
+                "Simulation took".bright_blue(),
+                elapsed.as_secs_f64().to_string().purple().bold(),
+                "seconds to run.".bright_blue(),
             );
         }
     }

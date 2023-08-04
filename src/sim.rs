@@ -76,7 +76,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Logs initial simulation state.
     log::run(&manager, &mut raw_data_container, pool_id)?;
 
-    println!("{}", "Running...".purple().magenta());
+    println!("{}", "Running...".bright_yellow());
     for (i, price) in prices.iter().skip(1).enumerate() {
         if std::env::var("VERBOSE").is_ok() {
             println!("====== Sim step: {}, price: {} =========", i, price);

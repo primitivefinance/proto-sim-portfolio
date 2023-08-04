@@ -11,11 +11,7 @@ use ethers::{
 use std::error::Error;
 
 // dynamic, generated with compile.sh
-use bindings::{
-    i_portfolio_actions::SwapReturn,
-    portfolio::PoolsReturn,
-    shared_types::{Order, PortfolioConfig},
-};
+use bindings::{i_portfolio_actions::SwapReturn, portfolio::PoolsReturn, shared_types::Order};
 
 use super::calls::{Caller, DecodedReturns};
 use super::common;
@@ -122,7 +118,9 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
     }
 
     let swap_order = get_swap_order(manager, pool_id, target_price_wad)?;
-    //println!("Swap order: {:#?}", swap_order);
+    if verbose.is_ok() {
+        println!("Swap order: {:#?}", swap_order);
+    }
 
     if swap_order.input == 0 {
         return Ok(());
@@ -141,20 +139,20 @@ pub fn run(manager: &SimulationManager, price: f64, pool_id: u64) -> Result<(), 
 
         match unpack_execution(swap_call_result) {
             Ok(unpacked) => {
-                let swap_return: SwapReturn = portfolio.decode_output("swap", unpacked)?;
-                //println!(
-                //    "Swap return: poolId {}, input {}, output {}, starting output: {}",
-                //    swap_return.pool_id, swap_return.input, swap_return.output, swap_order.output
-                //);
+                if verbose.is_ok() {
+                    let swap_return: SwapReturn = portfolio.decode_output("swap", unpacked)?;
+                    println!(
+                        "Swap successful call returned: poolId {}, input {}, output {}, starting output: {}",
+                        swap_return.pool_id,
+                        swap_return.input,
+                        swap_return.output,
+                        swap_order.output
+                    );
+                }
 
                 swap_success = true;
             }
-            Err(e) => {
-                // This `InvalidInvariant` can pop up in multiple ways. Best to check for this.
-                //println!("Invalid invariant error: {:?}", e);
-                let value = e.output.unwrap();
-                //println!("Value: {:?}", value.clone().encode_hex());
-
+            Err(_) => {
                 // reduce output by a small amount until we are successful in swapping
                 order.output = order
                     .output
@@ -250,33 +248,8 @@ pub fn get_amount_out(
     amount_in: U256,
 ) -> Result<U256, Box<dyn Error>> {
     let portfolio = manager.deployed_contracts.get("portfolio").unwrap();
-    let actor = manager.deployed_contracts.get("actor").unwrap();
     let arbitrageur = manager.agents.get("arbitrageur").unwrap();
 
-    let pool_data = arbitrageur
-        .call(portfolio, "pools", vec![pool_id.into_token()])
-        .unwrap();
-    let pool: PoolsReturn = portfolio
-        .decode_output("pools", unpack_execution(pool_data).unwrap())
-        .unwrap();
-
-    let config = arbitrageur.call(
-        actor,
-        "getConfig",
-        (recast_address(portfolio.address), pool_id).into_tokens(),
-    );
-    let config_return: PortfolioConfig = actor
-        .decode_output("getConfig", unpack_execution(config.unwrap()).unwrap())
-        .unwrap();
-
-    //println!("config: {:#?}", config_return);
-    //println!("pool: {:#?}", pool);
-
-    /*
-    let _rust_curve = NormalCurve::new_from_portfolio(&pool, &config_return);
-    let amount_out = _rust_curve.approximate_amount_out(sell_asset, wad_to_float(amount_in));
-    let amount_out = float_to_wad(amount_out);
-    */
     if amount_in == U256::from(0) {
         return Ok(0.into());
     }
